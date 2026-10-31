@@ -1,0 +1,113 @@
+---
+title: Data & security
+description: Where data lives, why passwords are plaintext, how downloads are verified, how logs are masked, and how large the injection surface is.
+group: Internals
+order: 2
+---
+
+## Where data lives
+
+| Content | Location |
+| --- | --- |
+| Project configuration | `%APPDATA%\com.hmilyld.sealpack\projects\<project id>.json` |
+| Global settings (three tool paths) | `%APPDATA%\com.hmilyld.sealpack\settings.json` |
+| Downloaded tools | `%APPDATA%\com.hmilyld.sealpack\tools\` |
+| Stage scratch files | `%APPDATA%\com.hmilyld.sealpack\work\<project id>\` |
+| Downloaded packages (cache) | `%APPDATA%\com.hmilyld.sealpack\work\downloads\` |
+| UI preferences (skin / theme / materials) | WebView `localStorage`, key `sealpack:design` |
+
+Project directories under `work\` older than **24 hours** are cleaned at startup (the `downloads\` cache is
+skipped) — an abnormal exit can leave scratch files behind, and the encryption config and packaging script
+contain plaintext passwords.
+
+## Passwords are stored in plaintext
+
+All three password fields in a project file are written **in plaintext** to `projects\<id>.json`:
+
+| Field | Purpose |
+| --- | --- |
+| `password` | installer password (Inno Setup's `Password`) |
+| `snKeyPass` | strong-name key password (`.pfx` container) |
+| `renamePassword` | symbol recovery password for ConfuserEx `reversible` renaming |
+
+This exists so the toolchain can be re-run unattended without typing passwords again. The UI renders all
+three with `type="password"`, but that only defeats shoulder surfing — it does not protect the file.
+
+<Callout tone="warn" label="Therefore">
+
+- **Never commit or share `%APPDATA%\com.hmilyld.sealpack\`;**
+- a leaked installer password defeats installer encryption — treat it as a password, not a key;
+- for stronger protection, leave the password empty in the project and pass it at run time with
+  `Setup.exe /PASSWORD=…`.
+
+</Callout>
+
+> Known improvement: move these three fields into Windows Credential Manager or encrypt them with DPAPI
+> before writing. That changes the project file format and needs a migration path; not implemented yet.
+
+## Integrity of downloaded tools
+
+None of the three tools is produced by this project, and each is distributed differently. `download.rs`
+folds them into one declaration (`SOURCES`): URL, expected byte count, SHA-256, package layout, source
+name and description.
+
+| Tool | Source | Form | Layout |
+| --- | --- | --- | --- |
+| ILMerge | NuGet feed | `.nupkg` (a zip) | real files under `tools/net452/` |
+| ConfuserEx | the author's GitHub releases | `.zip` | flat, unzip and use |
+| Inno Setup | official release | `.exe` installer | no portable build, silent install only |
+
+One flow: **fetch (cache hit skips the network) → verify the checksum → lay out into the target directory**.
+
+Deliberate choices:
+
+- **Checksums are pinned.** All three sources are immutable (NuGet and GitHub releases forbid replacing an
+  asset), so the SHA-256 can be fixed. A mismatch means the bytes are not the bytes we expect — better to
+  fail than to install a binary of unknown provenance into the tool directory.
+- **The cache predicate is the checksum, not "the file exists".** A half-finished download hashes to
+  something, just not to this. Downloads write `.part` first and rename, so a partial file never pollutes
+  the cache.
+- **Extraction keeps only the outermost filename**; the package's internal directory layout is not copied.
+  That also removes `..` and absolute paths, so nothing can be written outside the target directory.
+- **The same tool cannot be installed concurrently** (an `IN_FLIGHT` set). Disabling the button during a
+  download is only the first line of defence.
+- **Inno's silent install needs administrator approval.** Its setup script sets no `PrivilegesRequired`,
+  defaults to installing for all users, and only allows switching through a dialog — it rejects
+  `/CURRENTUSER`. So the app first probes for an existing local installation and offers "use the local
+  copy"; on failure it appends "requires UAC approval" to the real error instead of surfacing a bare code.
+
+## Log masking
+
+External tool command lines are logged verbatim and may carry passwords. `pipeline.rs::mask_secret` masks
+them at the single exit point using `SECRET_KEYS` (`PASSWORD=` / `SNKEYPASS=` / `RENAMEPASSWORD=` /
+`KEYPASS=`, case-insensitive).
+
+<Callout tone="pitfall">
+
+**A new sensitive parameter must be added to that table.** Recognising only one shape means the next
+parameter leaks silently. The table is asserted key by key in a unit test.
+
+</Callout>
+
+## Subprocesses and environment
+
+- All three tools are spawned with `CREATE_NO_WINDOW`, so no console window flashes.
+- Child output may be UTF-8 or the system ANSI code page (GBK on Simplified Chinese Windows);
+  `decode_line` tries UTF-8 first and falls back to GBK.
+- Merge and obfuscation **overwrite the executable in place**, so the first run backs it up to
+  `<name>.bakup`, and that backup stays out of the installer by default. Working in a separate output
+  directory is still recommended.
+
+## The rendering attack surface
+
+Every piece of dynamic text interpolated into `innerHTML` passes through `esc()` in `src/util.ts` (project
+names, paths, tool output). Project ids are restricted to `[A-Za-z0-9-]`, so they cannot be used for path
+traversal (`store.rs::validate_id`).
+
+The CSP is `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'`:
+
+- no remote resources at all; fonts are bundled;
+- `style-src` allows inline styles (components use inline `style` attributes for geometry);
+- `script-src 'self'` has no `'unsafe-inline'` — the first-frame theme bootstrap in `index.html` runs
+  because Tauri injects a CSP hash/nonce at build time. **Changing the CSP requires re-testing the first
+  frame.**

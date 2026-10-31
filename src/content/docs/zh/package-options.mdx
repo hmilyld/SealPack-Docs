@@ -1,0 +1,105 @@
+---
+title: 打包选项
+description: 19 项 Inno Setup 参数，分 5 组：压缩、打包模式、加密与签名、安装行为、完整性校验。
+group: 参考
+order: 2
+---
+
+## 组 1 · 压缩格式
+
+| 选项 | 默认 | 说明 |
+| --- | --- | --- |
+| `compression` | `lzma2/max` | 算法 + 等级写成一个值。可选 `lzma2/max` `lzma2/normal` `lzma2/fast` `lzma/max` `lzma/normal` `lzma/fast` `zip` `bzip` `none` |
+| `solidCompression` | **开** | 把多个文件放在一起联合压缩，压缩率更高；文件很多时编译明显变慢。不压缩时该项无效 |
+| `lzmaDictionarySize` | `0` | 单位 KB。0 表示不写这一行，交给 Inno 按压缩等级决定（推荐）。有效范围 4–3932160（64 位编译器），低于 4 的值会被 ISCC 拒绝所以不写入 |
+| `lzmaNumBlockThreads` | `0` | 0 表示不写这一行，Inno 用它自己的默认值 1。官方范围 1–256 |
+| `lzmaMatchFinder` | `bt` | `BT`（二叉树）压缩率更高但更吃内存 / `HC`（哈希链）省内存、略快 |
+| `lzmaUseSeparateProcess` | 关 | 32 位编译器在用了大字典 + 多线程后报「内存不足」时打开它 |
+
+
+<Figure src="/shots/23-package-options.png" alt="安装包选项的五组参数" caption="打包选项 —— 压缩、模式、加密与签名、安装行为、校验清单" />
+
+## 组 2 · 打包模式
+
+| 模式 | 行为 |
+| --- | --- |
+| `single` 标准安装程序 | 默认。写注册表、生成卸载程序、可建快捷方式 |
+| `portable` 免安装绿色版 | 不写注册表、不生成卸载程序、不建快捷方式。**没有升级这回事**，每次都是全新解压 |
+| `multi_volume` 分卷 | 拆成 `Setup-*.bin`。压缩后超过 4.2 GB 时 Inno 会强制要求 |
+
+| 选项 | 默认 | 说明 |
+| --- | --- | --- |
+| `packagingMode` | `single` | 见上表 |
+| `diskSliceSize` | `0` | 单位字节。官方范围 262144–9223372036800000000，低于下界的值不写入。0 表示用 Inno 默认的 2100000000（约 2 GB） |
+| `slicesPerDisk` | `1` | 官方范围 1–26。大于 1 时文件命名为 `Setup-xy.bin` |
+| `requireAdmin` | 关 | 打开后装到 `Program Files`（安装时弹 UAC）；关闭则装到当前用户目录，全程不需要提权 |
+| `wizardStyle` | `modern` | `modern` 是 Inno 6 的新式向导（推荐）/ `classic` 是旧版经典样式。官方还支持 `dark` / `dynamic` 等外观模式，本工具只暴露两档 |
+
+<Callout tone="warn">
+
+`requireAdmin` 决定 Inno 把卸载记录写在 HKCU 还是 HKLM。**两次构建之间不要改它** ——
+改了之后 Inno 找不到上一次的安装，会当成全新安装，两个版本并存。详见[应用标识与覆盖安装](/docs/appid)。
+
+</Callout>
+
+## 组 3 · 安装包加密与签名
+
+加密用 XChaCha20 对称加密，密钥由口令经 PBKDF2-HMAC-SHA256 派生；签名用 Authenticode 证书，属于非对称加密。
+
+| 选项 | 默认 | 说明 |
+| --- | --- | --- |
+| `encryption` | `yes` | `yes` 只加密文件内容，安装时弹框输入口令 / `full` 连安装界面一起加密 / `no` 不加密。口令取自工程设置里的「安装包口令」。**Inno 自己的默认是 `no`，SealPack 默认选 `yes`** |
+| `kdfIterations` | `220000` | PBKDF2-HMAC-SHA256 的迭代次数，官方范围 1–2147483647。越高越难暴力破解，但安装时校验口令也越慢 |
+| `signTool` | 空 | Inno 编译器里配置好的 SignTool 名称（如 `signtool`），留空则不签名 |
+| `signedUninstaller` | 关 | 连卸载程序一起签名，避免卸载时被拦。需要先配好签名工具 |
+
+`encryption=full` 时安装界面本身也是加密的，运行时没有输入框可用，必须用命令行传口令：
+
+```bat
+安装包.exe /PASSWORD=你的口令
+```
+
+<Callout tone="pitfall">
+
+**`Encryption=full` 仍然要写 `Password`。** 密钥在**编译期**由 `Password` 派生 —— ISCC 并没有
+`/PASSWORD=` 这个开关。`/PASSWORD=` 是**运行安装包**时用的，因为整包加密后连输入口令的界面都读不到。
+两件事不冲突，别为了「反正运行时要传口令」而把编译期的 `Password` 删掉。
+
+</Callout>
+
+
+<Figure src="/shots/29-package-crypto.png" alt="安装包加密与签名选项" caption="加密与签名 —— 口令派生、签名工具与卸载程序签名" />
+
+## 组 4 · 安装行为
+
+| 选项 | 默认 | 说明 |
+| --- | --- | --- |
+| `appId` | 空（自动推导） | 应用标识，决定「重新打包后是覆盖升级还是全新安装」。留空则由主程序的产品身份自动推导 |
+| `desktopIcon` | **开** | 在向导里提供一个「创建桌面图标」的勾选项（默认不勾）。绿色版下无效 |
+| `runAfterInstall` | **开** | 安装结束时提供「立即运行」选项。绿色版下无效 |
+| `uninstallable` | **开** | 关闭后「应用和功能」里不会出现本程序，也无法常规卸载。绿色版固定不生成 |
+
+## 组 5 · 完整性校验
+
+| 选项 | 默认 | 说明 |
+| --- | --- | --- |
+| `checksum` | `none` | 打包完成后在输出目录生成 `checksums-<算法>.txt`。`sha256`（推荐）/ `sha1` / `md5`（后两者只在与旧系统对接时才用，都已被证明可构造碰撞） |
+
+## 为什么只列 9 档压缩
+
+Inno 官方还支持 `lzma/ultra`、`lzma/ultra64`、`lzma2/ultra`、`lzma2/ultra64`
+与 `zip/1`–`zip/9`、`bzip/1`–`bzip/9`。
+
+不列 ultra 档是因为它们的字典默认值分别是 32 MB / 64 MB，压缩时内存要 **374 MB / 742 MB** ——
+摆在界面上更像陷阱而不是选项。需要时可在高级区直接改模板。
+
+`bzip` 不写等级时 Inno 默认按 9 处理；`zip` 默认按 7 处理。
+
+<Callout tone="note" label="取值一律白名单">
+
+不认识的枚举值会退回默认值（`defaults.rs::pick`），`elements` 会被规整成 `S`/`N`/`P`/`I` 的子集。
+工程 JSON 是可以手改的，这样即使有人写错一个字母，也不会把一句看不懂的语法错误甩给 ISCC。
+
+</Callout>
+
+所有边界值的出处与核实过程见[边界值与官方对照](/docs/appendix)。

@@ -1,0 +1,90 @@
+---
+title: 安装与系统要求
+description: 安装包放在 GitHub Releases，装到当前用户目录不需要管理员权限；首次运行要在设置里补齐三个外部工具。
+group: 概览
+order: 2
+---
+
+## 安装
+
+安装包在 [Releases](https://github.com/hmilyld/SealPack/releases) 里，是 NSIS 安装程序，
+`installMode` 为 `currentUser` —— 装进当前用户目录，**全程不需要管理员权限**，
+也不会往 `Program Files` 写任何东西。
+
+版本号取自 `tauri.conf.json`，标签只是发布触发器。所以「Release 标着 v0.2.0、装出来却是 0.1.0」
+这种情况在发版流程里被一道核对挡住了，见[开发与测试](/docs/development)。
+
+## 系统要求
+
+| 需要 | 版本 | 缺失时的表现 |
+| --- | --- | --- |
+| Windows | 10 1809+ / 11 | 装不上。窗口材质（Mica Alt）只在 Windows 11 可用 |
+| .NET Framework | 4.8+ | 界面顶部出现横幅，「合并」与「加密」两步不可执行 |
+| WebView2 运行时 | — | Windows 11 自带；Windows 10 由安装包按需安装 |
+
+打包这一步不受 .NET 缺失影响 —— Inno Setup 是原生程序。所以「只想打个包」的话，
+环境不全也能用。
+
+<Callout tone="note" label="为什么是 .NET">
+
+ILMerge 与 ConfuserEx 都是 .NET Framework 程序。SealPack 自己不需要它，
+但它调用的前两个工具需要。这就是为什么环境自检的结论是「影响哪两步」而不是「不能运行」。
+
+</Callout>
+
+
+<Figure src="/shots/16-banner-dotnet-swiss.png" alt="缺少 .NET Framework 时窗口顶部的告警横幅" caption="环境横幅 —— 说明缺什么、影响哪两步，而不是等到执行时才报错" />
+
+## 三个外部工具
+
+SealPack 不自带 Inno Setup，另外两个工具在安装包里有一份内置副本。工具路径的解析顺序永远是：
+
+1. **用户设置**里的路径（设置面板可以手动指定）
+2. **应用内置**的 `resources/tools/`
+3. **用户下载目录** `%APPDATA%\com.hmilyld.sealpack\tools\`
+
+第三级是必需的：应用装在 `Program Files` 下时内置目录只读，自动下载的工具只能落到用户目录，
+少了这一级就会出现「下载成功但界面仍显示未找到」。
+
+首次运行时若工具链缺失，打开**设置**（<Kbd>Ctrl</Kbd> + <Kbd>,</Kbd>）点「下载」即可：
+
+<Figure src="/shots/07-settings.png" alt="设置面板：三个工具的路径、下载按钮与运行环境自检" caption="设置面板 · 工具路径、下载来源与本机探测" />
+
+<Figure src="/shots/31-settings-download.png" alt="工具下载中的进度与来源信息" caption="下载中的状态 —— 来源、进度与校验值都摆在明面上" />
+
+
+- **ILMerge** 来自 NuGet 官方源，包是 `.nupkg`（本质是 zip），真正的文件在 `tools/net452/` 下；
+- **ConfuserEx** 来自作者的 GitHub Release，扁平 zip，解压即用；
+- **Inno Setup** 没有便携包，只能静默安装。它的安装脚本按「为所有用户安装」处理且不接受
+  `/CURRENTUSER`，所以会弹一次 UAC。程序会先探测本机已装的那一份并提供「使用本机」入口 ——
+  既免掉 10 MB 下载，也免掉一次提权。
+
+每个来源的 URL、字节数与 SHA-256 都写死在 `download.rs` 的 `SOURCES` 里。对不上就直接失败，
+不会把来路不明的二进制装进工具目录。细节见[数据与安全](/docs/security)。
+
+<Callout tone="pitfall">
+
+**内置副本会静默压住下载到的版本。** 解析顺序是「内置 > 下载」，所以 `resources/tools`
+里放一份旧版本，界面就会一直用旧的。这真的发生过：内置 Inno Setup 6.1 而声明的是 6.7.3，
+症状是打包时 `Unrecognized [Setup] section directive "EncryptionKeyDerivation"` ——
+这条指令 6.5 才有。内置目录里要么放对版本，要么不放。
+
+</Callout>
+
+## 中文语言包
+
+安装包里还带了一份 Inno Setup 的简体中文翻译（`resources/isl/ChineseSimplified.isl`）。
+原因是 Inno 的官方发行版**不含简体中文** —— 它的 `Languages\` 目录只带 29 种语言，
+简体中文属于用户贡献的翻译，需要单独下载。
+
+所以生成的脚本里不能写 `compiler:Languages\ChineseSimplified.isl`：那在任何标准安装上都会以
+`Couldn't open include file` 失败。SealPack 的做法是把自带的翻译复制到临时脚本旁边，
+用相对路径引用（ISCC 按**脚本所在目录**解析相对路径，与 Inno 装在哪儿无关）。
+
+## 升级与卸载
+
+安装包由 Inno 生成，覆盖升级还是全新安装取决于「应用标识（AppId）」。这一块有单独的说明，
+因为它是最容易踩、又最不容易发现的一处：[应用标识与覆盖安装](/docs/appid)。
+
+卸载走 Windows 的「应用和功能」，或运行安装目录里的 `uninstall.exe`。
+绿色版（`packagingMode=portable`）不写注册表、不生成卸载程序，删掉目录就是卸载。

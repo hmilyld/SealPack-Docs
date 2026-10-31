@@ -1,0 +1,97 @@
+---
+title: 模板与占位符
+description: .crproj 与 .iss 由 Rust 生成，占位符在执行阶段才替换。手工改过之后，开关就不再覆盖它。
+group: 参考
+order: 3
+---
+
+## 模板只有一份定义
+
+`.crproj` 与 `.iss` 的内容由 Rust 侧的 `defaults.rs`（`encrypt_config` / `package_script`）生成，
+前端只负责收集开关并调用 `render_encrypt_config` / `render_package_script` 重建它。
+
+工程里用 `generated: bool` 区分「由选项托管」与「用户手工改过」：
+
+| 取值 | 含义 |
+| --- | --- |
+| `generated: true` | 选项是唯一事实源，每次改开关都重新生成模板 |
+| `generated: false` | 你在「高级」里手工改过，模板为准，一个字都不动 |
+
+`generated: false` 时界面会给出提示条与「用当前选项覆盖模板」按钮，随时可以交回开关管理。
+「恢复默认选项」与「恢复默认模板」都会把 `generated` 置回 `true`。
+
+<Figure src="/shots/28-encrypt-template.png" alt="高级区：可折叠的模板编辑器与占位符 chip" caption="高级区 —— 模板编辑器默认收起，顶部有可点击的占位符 chip" />
+
+## 占位符
+
+模板里用 `${key}` 语法引用工程的实际值，**执行阶段**才替换（不是在编辑模板时）。
+采用 `${key}` 而非 `{key}`，是为了避开 Inno 自身的 `{app}`、`{#define}` 常量语法。
+
+| 占位符 | 含义 |
+| --- | --- |
+| `${id}` | 工程标识（GUID） |
+| `${name}` | 工程名称 |
+| `${root}` | 主程序所在目录 |
+| `${exe}` | 主程序文件名（含扩展名） |
+| `${exe_stem}` | 主程序文件名（不含扩展名） |
+| `${exe_path}` | 主程序完整路径 |
+| `${output}` | 安装包输出目录 |
+| `${version}` | 版本号 |
+| `${password}` | 安装包口令 |
+| `${ignore}` | 打包排除项（待合并程序集 + 主程序备份，逗号分隔） |
+
+高级区顶部有可点击的占位符 chip，点一下插入到光标处。
+
+## 打包脚本的关键结构
+
+生成的 `.iss` 里有两行 `Source`：
+
+```ini
+Source: "${root}\${exe}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "${root}\*"; Excludes: "${ignore},${exe}"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+```
+
+第二行必须把主程序本身排除掉（`${exe}`），否则同一个文件会进包两次 —— Inno 会报重复文件，
+体积统计也会重复计数。`${ignore}` 至少含主程序备份，所以不会拼出以逗号开头的空项。
+
+## ConfuserEx 配置的生成规则
+
+`<rule>` 里每个 protection 按固定顺序输出（`model.rs::enabled_protections`），
+界面上的摘要与生成的模板用的是同一个顺序，对照起来不会串行：
+
+```
+anti ildasm → anti debug → anti dump → anti tamper → constants
+→ ctrl flow → invalid metadata → rename → harden → ref proxy → resources
+```
+
+带参数的 protection 会输出 `<argument>`，且**即使取值等于 ConfuserEx 自己的默认值也照样显式写出来** ——
+这个工具的立场是「界面上的选项就是唯一事实源」，模板要能一眼看出每个开关产生了什么：
+
+| protection | 参数 |
+| --- | --- |
+| `anti debug` | `mode` |
+| `anti tamper` | `mode`、`key` |
+| `constants` | `mode`、`elements`、`cfg` |
+| `ctrl flow` | `type`、`predicate`（仅 `switch`）、`depth`（仅 `expression`/`x86`）、`intensity`、`junk` |
+| `rename` | `mode`、`password`（仅 `reversible` 且非空）、`renameArgs`、`renEnum`、`renPublic` |
+| `ref proxy` | `mode`、`internal` |
+| `resources` | `mode` |
+| 其余 | 无参数，自闭合 `<protection id="…" />` |
+
+`<module>` 上写 `path` 与可选的 `snKey` / `snKeyPass`；`<project>` 上写 `outputDir` / `baseDir` /
+可选的 `seed` / `debug`；`<packer id="compressor" />` 在 `compress` 开启时输出。
+
+## 两份实现，一个 fixture
+
+浏览器预览没有 Rust，所以 `preview/render.ts` 是 `defaults.rs` 的镜像。两边一旦漂移，
+预览里看到的模板就不是用户实际会拿到的模板 —— 而这种漂移在预览里看起来「挺对」，只会在真机上暴露。
+
+`pnpm run check:render-parity` 用 Rust dump 出来的 fixture 与 TS 侧的输出做**逐字比对**。
+fixture（`docs/fixtures/render-fixtures.json`，22 个用例）随仓库提交，所以不装 Rust 也能跑第二条命令。
+
+<Callout tone="pitfall">
+
+**改任何一侧的生成器后都要跑一次一致性校验。** 新增边界场景时，先在
+`defaults.rs::fixture_cases` 里加用例，再重新生成 fixture，否则新场景根本没被比到。
+
+</Callout>

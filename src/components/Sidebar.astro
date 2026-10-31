@@ -1,0 +1,51 @@
+---
+import type { Doc } from '~/lib/docs';
+import { docPath, GROUP_ORDER, ui, type Locale } from '~/lib/i18n';
+import { site } from '~/lib/site';
+
+interface Props {
+  locale: Locale;
+  docs: Doc[];
+  currentId?: string;
+}
+
+const { locale, docs, currentId } = Astro.props;
+const dict = ui[locale];
+
+const grouped = GROUP_ORDER[locale]
+  .map((group) => ({ group, items: docs.filter((d) => d.data.group === group) }))
+  .filter((g) => g.items.length > 0);
+---
+
+<nav class="rail" aria-label={dict.navAria}>
+  {
+    grouped.map(({ group, items }) => (
+      <div class="rail__group">
+        <p class="rail__group-title">{group}</p>
+        {items.map((item) => (
+          <a
+            class="rail__link"
+            href={docPath(locale, item.id)}
+            aria-current={item.id === currentId ? 'page' : undefined}
+          >
+            {item.data.title}
+          </a>
+        ))}
+      </div>
+    ))
+  }
+
+  <div class="rail__foot">
+    <p class="rail__foot-title">{dict.community}</p>
+    <a
+      class="rail__ext"
+      href={site.forum}
+      target="_blank"
+      rel="noreferrer noopener"
+      aria-label={`${dict.forum}（${dict.forumHost}）`}
+    >
+      <span>{dict.forum}<span class="rail__ext-mark" aria-hidden="true">↗</span></span>
+      <span class="rail__ext-host">{dict.forumHost}</span>
+    </a>
+  </div>
+</nav>

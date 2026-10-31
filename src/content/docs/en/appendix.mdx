@@ -1,0 +1,92 @@
+---
+title: Limits & official references
+description: Every directive and range checked against the Inno Setup help, plus the three numbers that changed as a result.
+group: Reference
+order: 5
+---
+
+The conclusions below were checked line by line against the Inno Setup help
+(`https://jrsoftware.org/ishelp/`, `topic_setup_*`) and verified by compiling with **Inno Setup 6.7**.
+The corresponding constants live at the top of `src-tauri/src/defaults.rs`, with same-named constants in
+`preview/render.ts` — **changing one requires changing the other**, plus the parity check.
+
+## Directive spelling
+
+| Directive | SealPack writes | Official docs | Verdict |
+| --- | --- | --- | --- |
+| `Compression` | nine levels such as `lzma2/max` | default `lzma2/max`; also `lzma/ultra`, `zip/1`–`zip/9` and more | valid (a subset) |
+| `SolidCompression` | `yes` | boolean | correct |
+| `LZMADictionarySize` | `N` (KB) | `4`–`3932160` on the 64-bit compiler | correct |
+| `LZMANumBlockThreads` | `N` | `1`–`256`, default `1` | correct |
+| `LZMAMatchFinder` | `BT` / `HC` | same | correct |
+| `LZMAUseSeparateProcess` | `yes` | same | correct |
+| `DiskSpanning` | `yes` | same | correct |
+| `DiskSliceSize` | `N` | `262144`–`9223372036800000000` or the literal `max` | correct |
+| `SlicesPerDisk` | `N` | `1`–`26`, default `1` | correct |
+| `Encryption` | `yes` / `full` | `yes` / `no` / `full`, default `no` | correct |
+| `EncryptionKeyDerivation` | `pbkdf2/N` | `pbkdf2` or `pbkdf2/1`–`pbkdf2/2147483647` | correct |
+| `Password` | plaintext | same | correct |
+| `PrivilegesRequired` | `admin` / `lowest` | same, default `admin` | correct |
+| `WizardStyle` | `modern` / `classic` | same (also `dark`, `dynamic`, `polar`, …) | correct |
+
+## Three numbers that changed after checking
+
+| Item | Was | Official | Fix |
+| --- | --- | --- | --- |
+| `DiskSliceSize` upper bound | `9223372036854775807` (i64::MAX) | `9223372036800000000` | Both the UI `max` and the generator clamp now use the official value. It exceeds the JS safe-integer range, but its shortest round-trip representation is exactly this string, so both sides emit the same text |
+| `LZMADictionarySize` lower bound | written when `> 0` | valid range starts at `4` | Now written when `>= 4` — 1–3 is rejected outright by ISCC |
+| `LZMANumBlockThreads` wording | "0 means auto" | the default is `1`, not auto-detection | Reworded to "0 omits the line; Inno uses its own default of 1" |
+
+Two more strings were corrected at the same time: `Encryption` now says "SealPack default" explicitly
+(Inno's own default is `no`), and `WizardStyle` mentions that Inno also supports `dark` / `dynamic`.
+
+## End-to-end evidence
+
+Beyond reading the docs, six representative configurations were **compiled with Inno Setup 6.7** (scripts
+produced by this project's generator, placeholders replaced with real paths):
+
+| Configuration | Covers | Result |
+| --- | --- | --- |
+| Single file + every LZMA parameter | `Compression`, `SolidCompression`, dictionary, threads, match finder, separate process | compiles, zero warnings |
+| `Encryption=full` | full-package encryption + `Password` + `EncryptionKeyDerivation` | compiles, zero warnings |
+| Split volumes | `DiskSpanning`, `DiskSliceSize=1566000000`, `SlicesPerDisk=3` | compiles, zero warnings |
+| Portable | `Uninstallable=no`, `CreateUninstallRegKey=no`, no `[Icons]` / `[Tasks]` / `[Run]` | compiles, zero warnings |
+| No compression | `Compression=none`, no `SolidCompression` or LZMA lines | compiles, zero warnings |
+| Unknown values | `compression=rar/9`, `wizardStyle=nope`, `encryption=bogus` → all fall back to defaults | compiles, zero warnings |
+
+The executable is included exactly once in `[Files]` (a duplicate from the `*` line would make ISCC report
+a duplicate file — there were none).
+
+## Language pack: no `compiler:` for Chinese
+
+The generated script contains:
+
+```ini
+Name: "chinesesimplified"; MessagesFile: "ChineseSimplified.isl"
+```
+
+It must **not** be written as `compiler:Languages\ChineseSimplified.isl`. Inno's official distribution
+ships 29 languages in `Languages\`, and **Simplified Chinese is a user-contributed translation** that has
+to be downloaded separately (see [jrsoftware.org/files/istrans](https://jrsoftware.org/files/istrans/)).
+With the `compiler:` prefix, any standard installation fails with `Couldn't open include file` — only a
+machine where someone manually dropped the file into the Inno directory would work.
+
+So the app **carries its own copy** of a translation for Inno 6.5+
+(`src-tauri/resources/isl/ChineseSimplified.isl`), copies it next to the temporary script during
+packaging, and references it by relative path (ISCC resolves relative to the **script's** directory,
+regardless of where Inno is installed).
+
+<Callout tone="warn" label="When upgrading Inno">
+
+If a new version introduces message keys, the older translation emits
+`A message named "…" has not been defined` warnings (it falls back to English, not fatal). Replace the
+translation with a newer one.
+
+</Callout>
+
+## One rule
+
+After changing a `[Setup]` directive or the language-pack reference, **compile once with a real ISCC**.
+A unit test proves the string is spelled right; it cannot prove ISCC recognises the directive or that the
+language file is present. The cheapest way is exactly what is described above: generate a script, replace
+the placeholders with real paths, hand it to `ISCC.exe`.

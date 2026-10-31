@@ -1,0 +1,101 @@
+---
+title: FAQ
+description: Nine questions that keep coming up in issues, and the one design decision behind each of them.
+group: Internals
+order: 4
+---
+
+## I rebuilt and now there are two programs installed
+
+Inno identifies an application by its `AppId`. SealPack derives that from the executable's product
+identity, so rebuilding the same executable upgrades in place. Two side-by-side versions usually mean one
+of these:
+
+- you switched **projects** (even with the same executable) — and on v0.1.0 the AppId came from the project
+  id;
+- the executable's `ProductName` or `CompanyName` changed — that really is a different product;
+- the "require administrator" switch changed between builds — it decides whether the uninstall record
+  lives under HKCU or HKLM.
+
+To reconnect to an old AppId, paste the old value into "app identity" under package options. The full
+story is in [app identity & upgrades](/en/docs/appid).
+
+## Packaging fails with `Unrecognized [Setup] section directive "EncryptionKeyDerivation"`
+
+The generated script contains a directive ISCC does not know, which almost always means **an old Inno
+Setup**. `EncryptionKeyDerivation` exists from 6.5 on.
+
+Tool resolution is "user settings, then bundled, then download directory", so an old copy in the bundled
+directory **silently shadows** the correct downloaded one. Check in settings which one is actually in use,
+or delete the old copy from the bundled directory. This happened for real: bundled 6.1 against a declared
+6.7.3, with exactly this message.
+
+## Packaging fails with `Couldn't open include file ... ChineseSimplified.isl`
+
+This only happens if you **edited the template** and wrote the language line as
+`compiler:Languages\ChineseSimplified.isl`.
+
+Inno's official distribution does not include Simplified Chinese, so the `compiler:` prefix fails on any
+standard installation. SealPack's bundled translation is copied next to the temporary script and referenced
+by relative path — restoring the default template puts you back on that path.
+
+## I changed a switch but the template did not change
+
+Because the template is marked as hand-edited (`generated: false`). The template is then the only source of
+truth and switches no longer overwrite it.
+
+To hand control back, press "overwrite template with current options" on the banner, or "restore default
+template". Both set `generated` back to `true`.
+
+## The preview shows a different template than the real app
+
+The preview's generator is a mirror of the Rust one, and the two can drift. Run the parity check:
+
+```bash
+pnpm run check:render-parity
+```
+
+It compares the fixture dumped from Rust against the TypeScript output, character by character. Run it
+after touching either generator.
+
+## The program crashes at startup once renaming is enabled
+
+Renaming changes class and method names, which breaks programs that look symbols up by reflection or
+serialise across assemblies.
+
+Order of investigation:
+
+1. set `renameMode` to `letters` (best compatibility);
+2. turn off `renEnum` (enum member names are often serialised as strings);
+3. turn off `renPublic` (never enable it for a library called from outside);
+4. if it still crashes, bisect with the "basic" preset to confirm whether renaming is even the cause.
+
+## A password appears in the log
+
+That should not happen. `pipeline.rs::mask_secret` masks `PASSWORD=` / `SNKEYPASS=` / `RENAMEPASSWORD=` /
+`KEYPASS=` (case-insensitive) at the single exit point.
+
+If you do see one, some tool's **parameter name is missing from the table**. That is a code problem, not a
+configuration one — new sensitive parameters must be added to that table, which a unit test asserts key by
+key.
+
+## Why Windows only
+
+Because two of the three external tools are .NET Framework programs, and the entire desktop layer
+(frameless window, eight resize zones, Mica Alt, hand-drawn caption buttons, suppressed browser
+behaviour) was designed around Windows conventions. Porting is not a recompile; it is redoing those
+decisions.
+
+## Obfuscation made startup slower — is that expected?
+
+Expected, but pick the right switches. Ranked by startup impact:
+
+1. `antiTamper` with `tamperMode=jit` — verification before every method is compiled, the most visible;
+2. `controlFlow` (especially with a low `cfIntensity`) and `cfJunk` — size and execution time both grow;
+3. `resources` encryption — resources are decoded at startup;
+4. `constants` encryption — a small effect;
+5. `antiIldasm` and `invalidMetadata` — essentially free at run time.
+
+Start from the "standard" preset, measure a baseline, then add one switch at a time. Do not jump straight
+to "aggressive": its anti-tamper and anti-dump features demand more compatibility testing than they do
+performance budget.

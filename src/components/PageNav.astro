@@ -1,0 +1,36 @@
+---
+import type { Doc } from '~/lib/docs';
+import { docPath, ui, type Locale } from '~/lib/i18n';
+
+interface Props {
+  locale: Locale;
+  prev?: Doc;
+  next?: Doc;
+}
+
+const { locale, prev, next } = Astro.props;
+const dict = ui[locale];
+---
+
+<nav class="pagenav" aria-label={dict.pagerAria}>
+  {
+    prev ? (
+      <a class="pagenav__cell" href={docPath(locale, prev.id)}>
+        <span class="pagenav__dir">{dict.prev}</span>
+        <span class="pagenav__title">{prev.data.title}</span>
+      </a>
+    ) : (
+      <div class="pagenav__cell pagenav__cell--empty" aria-hidden="true" />
+    )
+  }
+  {
+    next ? (
+      <a class="pagenav__cell" href={docPath(locale, next.id)}>
+        <span class="pagenav__dir">{dict.next}</span>
+        <span class="pagenav__title">{next.data.title}</span>
+      </a>
+    ) : (
+      <div class="pagenav__cell pagenav__cell--empty" aria-hidden="true" />
+    )
+  }
+</nav>

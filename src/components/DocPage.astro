@@ -1,0 +1,27 @@
+---
+import { render } from 'astro:content';
+import DocLayout from '~/layouts/DocLayout.astro';
+import Callout from '~/components/Callout.astro';
+import Figure from '~/components/Figure.astro';
+import Kbd from '~/components/Kbd.astro';
+import type { Locale } from '~/lib/i18n';
+import type { Doc } from '~/lib/docs';
+
+interface Props {
+  locale: Locale;
+  entry: Doc;
+  docs: Doc[];
+  prev?: Doc;
+  next?: Doc;
+}
+
+const { locale, entry, docs, prev, next } = Astro.props;
+const { Content, headings } = await render(entry as never);
+
+// 这些组件在 .mdx 里直接写标签名即可，不需要逐篇 import。
+const components = { Callout, Figure, Kbd };
+---
+
+<DocLayout locale={locale} entry={entry} docs={docs} headings={headings} prev={prev} next={next}>
+  <Content components={components} />
+</DocLayout>

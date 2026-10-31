@@ -1,0 +1,52 @@
+---
+title: 项目简介
+description: SealPack 是一个 Windows 桌面应用，把 ILMerge、ConfuserEx、Inno Setup 串成一条可重复执行的三阶段流水线。
+group: 概览
+order: 1
+---
+
+SealPack 把三个成熟的外部命令行工具收进一个窗口：先合并程序集，再混淆加密，最后生成安装包。
+每一步都有独立的开关面，改完立刻重算配置模板，点一次执行就按顺序跑完。
+
+它不实现任何密码学算法 —— 混淆由 ConfuserEx 完成，安装包加密由 Inno Setup 完成。
+SealPack 负责的是**工程管理、参数编排、模板渲染与实时日志回传**，也就是把「读三份文档、手写两份配置」
+变成「点几下开关」。
+
+<Figure src="/shots/02-merge.png" alt="SealPack 主界面：五步向导停在合并步骤" caption="五步向导 · ② 合并（瑞士技术网格皮肤）" />
+
+## 三个阶段
+
+| 阶段 | 工具 | 作用 | 产物 |
+| --- | --- | --- | --- |
+| ① 程序合并 | [ILMerge](https://github.com/dotnet/ILMerge) | 把多个程序集合并进主程序 | 覆盖后的 `.exe` |
+| ② 程序加密 | [ConfuserEx](https://github.com/mkaring/ConfuserEx) | 混淆 + 压缩保护主程序 | 覆盖后的 `.exe` |
+| ③ 安装包打包 | [Inno Setup](https://jrsoftware.org/isinfo.php) | 生成安装程序，支持安装口令、整包加密与代码签名 | `Setup.exe` 与校验清单 |
+
+三步各自都可以跳过：没勾选程序集就不合并，没启用保护就不加密，直接打包也成立。
+某一步失败则整体停下并保留日志 —— 后面的步骤依赖前一步的产物，拿半成品继续往下跑只会得到更难排查的错误。
+
+## 它刻意不做的事
+
+- **不自己实现混淆或加密**。这两件事各有做了十几年的工具，重新实现一遍只会更弱、更容易被针对。
+- **不把选项写死在界面里**。加密与打包的每个选项都是 `src/types.ts` 里的一条声明，界面按它渲染，回归探针按它断言。
+- **不让模板与界面分叉**。`.crproj` 与 `.iss` 由 Rust 侧生成；前端只收集开关，模板永远由后端算出来。
+
+## 运行环境
+
+| 需要 | 说明 |
+| --- | --- |
+| Windows 10 1809+ / Windows 11 | 应用本身只支持 Windows；窗口材质（Mica Alt）需要 Windows 11 |
+| .NET Framework 4.8+ | ILMerge 与 ConfuserEx 是 .NET Framework 程序，缺失时「合并」与「加密」两步不可用 |
+| WebView2 运行时 | Windows 11 自带；Windows 10 由安装包按需安装 |
+
+打包这一步不受 .NET 缺失影响 —— Inno Setup 是原生程序。环境自检的结果会以横幅形式出现在界面顶部，
+说明缺什么、影响哪几步，而不是等到执行时才报一句看不懂的错误。
+
+## 接下来
+
+<Callout tone="note" label="建议顺序">
+
+第一次用建议按「[安装与系统要求](/docs/install) → [五步向导](/docs/wizard)」走一遍，
+先拿一个不重要的程序试跑，确认三步都能产出文件，再回到[选项参考](/docs/encrypt-options)逐项调。
+
+</Callout>

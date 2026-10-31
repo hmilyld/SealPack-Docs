@@ -1,0 +1,13 @@
+# 依赖与构建产物
+node_modules/
+dist/
+.astro/
+
+# 探针截图（每次运行重新生成；站点用的是 public/shots/ 里那份，必须提交）
+/shots/
+
+# 本地浏览器配置与临时文件
+.edge-profile*/
+.edge-*.txt
+*.log
+.DS_Store

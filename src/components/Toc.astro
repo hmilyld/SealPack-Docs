@@ -1,0 +1,74 @@
+---
+import { ui, type Locale } from '~/lib/i18n';
+
+interface Props {
+  locale: Locale;
+  headings: { depth: number; slug: string; text: string }[];
+}
+
+const { locale, headings } = Astro.props;
+const dict = ui[locale];
+const items = headings.filter((h) => h.depth === 2 || h.depth === 3);
+---
+
+<aside class="toc" aria-label={dict.tocAria}>
+  <p class="toc__title">{dict.toc}</p>
+  {
+    items.length === 0 ? (
+      <p class="toc__empty">{dict.tocEmpty}</p>
+    ) : (
+      items.map((h) => (
+        <a
+          class:list={['toc__link', h.depth === 3 && 'toc__link--3']}
+          href={`#${h.slug}`}
+          data-toc-link={h.slug}
+        >
+          {h.text}
+        </a>
+      ))
+    )
+  }
+</aside>
+
+<script>
+  const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-toc-link]'));
+  const targets = links
+    .map((link) => {
+      const id = link.dataset.tocLink!;
+      const el = document.getElementById(id);
+      return el ? { link, el } : null;
+    })
+    .filter((v): v is { link: HTMLAnchorElement; el: HTMLElement } => v !== null);
+
+  if (targets.length > 0) {
+    let frame = 0;
+
+    const update = () => {
+      frame = 0;
+      const line = 120; // 顶栏 60px + 一点余量
+      let active = targets[0]!;
+      for (const t of targets) {
+        if (t.el.getBoundingClientRect().top <= line) active = t;
+        else break;
+      }
+      // 滚到底部时强制高亮最后一节，否则最后一节永远点不亮
+      if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 4) {
+        active = targets[targets.length - 1]!;
+      }
+      for (const t of targets) {
+        t.link.classList.toggle('is-active', t === active);
+        if (t === active) t.link.setAttribute('aria-current', 'true');
+        else t.link.removeAttribute('aria-current');
+      }
+    };
+
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(update);
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    update();
+  }
+</script>

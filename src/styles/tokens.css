@@ -1,0 +1,65 @@
+/* ============================================================================
+   设计令牌
+   ---------------------------------------------------------------------------
+   底色是「纸」，不是「白」；主色只有一个朱红，其余全部由墨色的浓淡撑起来。
+   暗色不是把颜色反过来，而是换成一盏更暗的纸（#17140f）——
+   纯黑背景会让 1px 的细线消失，也就把整页的网格结构一起弄丢了。
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* 纸与墨 */
+  --paper: #f7f4ee;
+  --paper-2: #efeae0;
+  --paper-3: #e6ded1;
+  --ink: #17130f;
+  --ink-2: #3d372f;
+  --muted: #6d6457;
+  --faint: #93897b;
+
+  /* 线 —— 结构全部由线画出来，没有阴影，也没有圆角卡片 */
+  --rule: #d9d0c1;
+  --rule-2: #c2b6a3;
+  --rule-strong: #17130f;
+
+  /* 朱红 */
+  --accent: #c23327;
+  --accent-ink: #fffdf8;
+  --accent-soft: #f2e0db;
+
+  --code-bg: #f1ede4;
+  --mark: #f0dfb8;
+
+  --header-h: 60px;
+  --rail-w: 258px;
+  --toc-w: 196px;
+
+  --font-sans: 'Instrument Sans', ui-sans-serif, 'PingFang SC', 'Microsoft YaHei UI',
+    'Microsoft YaHei', 'Noto Sans SC', 'Source Han Sans SC', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, 'Microsoft YaHei',
+    monospace;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --paper: #17140f;
+  --paper-2: #1e1a14;
+  --paper-3: #272119;
+  --ink: #ece5d9;
+  --ink-2: #c6bdae;
+  --muted: #948a7b;
+  --faint: #7b7163;
+
+  --rule: #322c23;
+  --rule-2: #453d31;
+  --rule-strong: #6a5f4d;
+
+  --accent: #e8735f;
+  --accent-ink: #17140f;
+  --accent-soft: #2b1c17;
+
+  --code-bg: #100e0a;
+  --mark: #3a3223;
+}

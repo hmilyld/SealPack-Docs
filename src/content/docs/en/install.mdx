@@ -1,0 +1,101 @@
+---
+title: Install & requirements
+description: The installer lives on GitHub Releases and installs per-user, no admin rights needed. First launch is about filling in the three external tools.
+group: Overview
+order: 2
+---
+
+## Install
+
+The installer is on [Releases](https://github.com/hmilyld/SealPack/releases). It is an NSIS package with
+`installMode: currentUser` — it installs into your user profile, **never asks for administrator rights**,
+and writes nothing to `Program Files`.
+
+The version string comes from `tauri.conf.json`; the git tag only triggers the build. That means
+"the release says v0.2.0 but installs 0.1.0" is caught by a check in the release workflow, described in
+[development & testing](/en/docs/development).
+
+## System requirements
+
+| Need | Version | What happens without it |
+| --- | --- | --- |
+| Windows | 10 1809+ / 11 | It will not install. Window materials (Mica Alt) need Windows 11 |
+| .NET Framework | 4.8+ | A banner appears and the merge and obfuscate stages become unavailable |
+| WebView2 runtime | — | Ships with Windows 11; installed on demand on Windows 10 |
+
+Packaging is unaffected by a missing .NET — Inno Setup is a native program. So "I only want to build an
+installer" works on a bare machine.
+
+<Callout tone="note" label="Why .NET at all">
+
+ILMerge and ConfuserEx are .NET Framework programs. SealPack itself does not need the runtime, but the
+first two tools it drives do. That is why the environment check reports "which stages are affected"
+rather than "cannot run".
+
+</Callout>
+
+
+<Figure src="/shots/16-banner-dotnet-swiss.png" alt="The warning banner shown when .NET Framework is missing" caption="The environment banner — names what is missing and which two stages it affects" />
+
+## The three external tools
+
+SealPack bundles two of them and never ships Inno Setup. Tool resolution order is always:
+
+1. the path in **settings** (set by hand in the settings panel),
+2. the **bundled** copy under `resources/tools/`,
+3. the **user download directory** `%APPDATA%\com.hmilyld.sealpack\tools\`.
+
+The third level is mandatory: when the app is installed under `Program Files` the bundled directory is
+read-only, so an automatically downloaded tool can only land in the user profile. Without it you get
+"download succeeded, but the UI still says not found".
+
+If the toolchain is missing on first run, open **settings** (<Kbd>Ctrl</Kbd> + <Kbd>,</Kbd>) and press
+download:
+
+<Figure src="/shots/07-settings.png" alt="Settings panel: tool paths, download buttons and the environment check" caption="Settings · tool paths, download sources and local detection" />
+
+<Figure src="/shots/31-settings-download.png" alt="A tool download in progress with its source" caption="Downloading — source, progress and checksum are all on screen" />
+
+
+- **ILMerge** comes from the NuGet feed. The package is a `.nupkg` (a zip in disguise) and the real files
+  live under `tools/net452/`;
+- **ConfuserEx** comes from the author's GitHub releases as a flat zip;
+- **Inno Setup** has no portable build, so it is installed silently. Its setup script installs for all
+  users and rejects `/CURRENTUSER`, which means one UAC prompt. The app first probes for an existing
+  local installation and offers "use the local copy" — saving both a 10 MB download and an elevation.
+
+URLs, byte counts and SHA-256 digests for all three are pinned in `download.rs` (`SOURCES`). A mismatch
+fails the install outright; nothing of unknown provenance is written into the tool directory. See
+[data & security](/en/docs/security).
+
+<Callout tone="pitfall">
+
+**A bundled copy silently shadows the downloaded version.** Resolution order is "bundled first, then
+downloaded", so an old version in `resources/tools` is what you keep using. This actually happened: a
+bundled Inno Setup 6.1 against a declared 6.7.3, and the symptom was
+`Unrecognized [Setup] section directive "EncryptionKeyDerivation"` — a directive that only exists from
+6.5 on. Keep the bundled directory at the declared version, or leave it empty.
+
+</Callout>
+
+## The Chinese language pack
+
+The installer also carries a Simplified Chinese translation for Inno Setup
+(`resources/isl/ChineseSimplified.isl`). The reason is that Inno's official distribution **does not
+include Chinese** — its `Languages\` directory ships 29 languages and Simplified Chinese is a
+user-contributed translation that has to be downloaded separately.
+
+So the generated script cannot say `compiler:Languages\ChineseSimplified.isl`; that fails with
+`Couldn't open include file` on any standard installation. SealPack copies its own copy next to the
+temporary script and references it by relative path (ISCC resolves relative to the **script's**
+directory, so it does not matter where Inno itself lives).
+
+## Upgrades and uninstalling
+
+The installer is produced by Inno, and whether a rebuild upgrades or installs side by side depends on
+the AppId. That has a page of its own because it is the easiest thing to get wrong and the hardest to
+notice: [app identity & upgrades](/en/docs/appid).
+
+Uninstall through Windows "Installed apps", or run `uninstall.exe` in the install directory. The portable
+mode (`packagingMode=portable`) writes no registry keys and creates no uninstaller — deleting the folder
+is the uninstall.

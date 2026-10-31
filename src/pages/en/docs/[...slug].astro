@@ -1,0 +1,23 @@
+---
+import DocPage from '~/components/DocPage.astro';
+import { getDocs, type Doc } from '~/lib/docs';
+
+export async function getStaticPaths() {
+  const docs = await getDocs('en');
+  return docs.map((entry, i) => ({
+    params: { slug: entry.id },
+    props: { entry, docs, prev: docs[i - 1], next: docs[i + 1] },
+  }));
+}
+
+interface Props {
+  entry: Doc;
+  docs: Doc[];
+  prev?: Doc;
+  next?: Doc;
+}
+
+const { entry, docs, prev, next } = Astro.props;
+---
+
+<DocPage locale="en" entry={entry} docs={docs} prev={prev} next={next} />

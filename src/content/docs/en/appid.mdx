@@ -1,0 +1,82 @@
+---
+title: App identity & upgrades
+description: "The easiest thing to get wrong in packaging and the hardest to notice — AppId decides whether a rebuild upgrades in place or installs a second copy."
+group: Reference
+order: 4
+---
+
+## How Inno decides "upgrade" versus "fresh install"
+
+Inno recognises an application by its `AppId`, recorded at
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\<AppId>_is1`:
+
+- **Same AppId** → a new version of the same app: it upgrades in place, updates the version in the uninstall
+  entry, and defaults to the previous install directory (`UsePreviousAppDir` defaults to `yes`);
+- **Different AppId** → a different app: a fresh install, and both versions sit side by side in
+  "Installed apps".
+
+So **the AppId must stay identical across all builds of the same product**.
+
+## Why the project id cannot be the AppId
+
+The project id is a random UUID generated when you create a project. Using it as the AppId means:
+
+- rebuilding the same project → same AppId → **it does** upgrade;
+- switching to another project (even with the same executable) → different AppId → **fresh install, two
+  versions side by side**.
+
+Which is exactly the "I changed three lines, rebuilt, and now there are two programs" report.
+
+## What it does now
+
+The `AppId` is derived from the **executable's product identity**: `ProductName` + `CompanyName` +
+`OriginalFilename` from the version resource (falling back to the filename), concatenated, hashed
+deterministically and shaped like a UUIDv5.
+
+- the same executable **recompiled, repackaged, or packaged on another machine** → same AppId;
+- a changed `ProductName` or `CompanyName` → a different AppId — which is correct, it is a different product;
+- the derived value is filled into "app identity" and **can be edited by hand** (to force a different
+  identity, or to reconnect to an old AppId).
+
+The derivation (`commands.rs::detect_app_id`) is pinned by unit tests: deterministic, different products
+differ, valid UUID shape, case-only changes do not count as a new product, and fields cannot bleed into
+each other.
+
+## Two easy-to-miss preconditions
+
+1. **`PrivilegesRequired` must not change between builds.** It decides whether Inno writes the uninstall
+   record under HKCU or HKLM; if the previous build was per-user and this one requires admin, the second
+   build cannot find the first installation and installs fresh.
+2. **Portable mode (`packagingMode=portable`) has no upgrades.** It writes `Uninstallable=no` and
+   `CreateUninstallRegKey=no`, so Inno has nothing to look up and every run unpacks fresh. That is
+   intentional.
+
+<Callout tone="verified" label="Verified on a real machine">
+
+Checked with Inno Setup 6.7: one AppId, two different script versions, deliberately different project ids.
+
+Installing v1.0.0.0 produced the uninstall key `{6f3a…}_is1` with `DisplayVersion=1.0.0.0`; installing
+v1.1.0.0 afterwards left **one** uninstall key and set `DisplayVersion=1.1.0.0`. No side-by-side copy.
+
+</Callout>
+
+## The one-time migration
+
+The AppId scheme changed in **v0.1.1** (v0.1.0 used the project id). As a consequence:
+
+> An installer built with v0.1.0 and one built with v0.1.1 or later have different AppIds and will not
+> upgrade each other — once. To reconnect, paste the old value into "app identity" by hand.
+
+## How to confirm your build is right
+
+1. Build twice (or bump the version and rebuild) and install both;
+2. Open Settings → Apps → Installed apps and confirm there is exactly **one** entry;
+3. Or look at the registry: under `HKCU\...\Uninstall\` the `DisplayVersion` on that single `_is1` key
+   changed and the key count did not.
+
+<Callout tone="warn">
+
+If you flipped the "require administrator" switch, do not flip it back between builds — it decides which
+registry hive the record lives in. That has nothing to do with AppId, but the symptom is identical.
+
+</Callout>

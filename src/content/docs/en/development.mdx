@@ -1,0 +1,212 @@
+---
+title: Development & testing
+description: Environment, commands, the preview's debug parameters, the CDP probe, generator parity, and the checks in the release flow.
+group: Internals
+order: 3
+---
+
+## Environment
+
+| Need | Version | Notes |
+| --- | --- | --- |
+| Windows | 10 1809+ / 11 | The app is Windows-only; the Rust code also `cargo check`s elsewhere |
+| Node.js | ≥ 22.6 | the parity script uses Node's type stripping |
+| pnpm | 12.x | `package.json` pins `packageManager` |
+| Rust | ≥ 1.77 | see `rust-version` in `Cargo.toml` |
+| .NET Framework | 4.8+ | only needed to run ILMerge / ConfuserEx, not to develop the UI |
+
+This project uses **pnpm**; the repository only contains `pnpm-lock.yaml`. Do not generate a lockfile with
+npm or yarn — the two would disagree with each other, and `tauri.conf.json`'s `beforeDevCommand` /
+`beforeBuildCommand` assume pnpm.
+
+## Commands
+
+```bash
+pnpm install
+pnpm run app:dev              # Tauri dev mode (Vite dev server pinned to port 1420)
+pnpm run app:build            # produces the NSIS installer
+pnpm run build:preview        # typecheck + build the browser preview → dist-preview/
+pnpm run check:render-parity  # byte-for-byte comparison of the two generators
+```
+
+Rust side:
+
+```bash
+cd src-tauri
+cargo test                                  # unit tests
+cargo test -- --ignored                     # network tests + regenerate the fixture
+cargo fmt                                   # run before committing (CI checks it)
+cargo clippy --all-targets -- -D warnings
+```
+
+- **There is no frontend lint or formatter.** Type checking is `tsc --noEmit`, run inside `build` /
+  `build:preview`. `tsconfig.json` enables `noUnusedLocals` / `noUnusedParameters`, so an unused variable
+  fails the build.
+- **Rust has format and lint gates**: `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`
+  are clean and CI enforces them.
+- One test at a time: `cargo test <filter>`, for example `cargo test defaults::`.
+
+## Debugging the UI without Tauri
+
+The browser preview runs the interface against a fake Tauri IPC layer (`preview/mock.ts`) with hard-coded
+sample projects.
+
+```bash
+pnpm run dev          # then open http://localhost:1420/preview.html
+# or: pnpm run build:preview and open dist-preview/preview.html directly
+```
+
+The preview page accepts these query parameters for isolating one part of the UI:
+
+| Parameter | Effect |
+| --- | --- |
+| `?skin=swiss` / `?skin=terminal` | pick the design |
+| `?theme=light` / `?theme=dark` | pick the theme (and leave auto mode) |
+| `?material=on` | make the mock report materials as available, exercising the translucent chrome branch |
+| `?pick=none` | make every file picker return "cancelled", for the cancel path |
+| `?dialog=settings` | open the settings panel |
+| `?dotnet=missing` | simulate a missing .NET Framework, for the environment banner |
+
+Overrides are written into `localStorage` first and then read by `src/skin.ts`, so preview parameters and
+the in-app switcher never fight each other.
+
+<Callout tone="pitfall">
+
+`preview/entry.ts` must pull `src/main.ts` in with a **dynamic import**: a static import is hoisted and the
+mock never installs. The problem only shows up in the built output (in dev, native ESM evaluates in
+declaration order and hides it).
+
+</Callout>
+
+## The UI regression probe
+
+There are no frontend unit tests; the safety net is `scripts/ui-probe.mjs` — a Chrome DevTools Protocol
+driver asserting computed styles and DOM state in a real browser (not eyeballing screenshots).
+
+```bash
+pnpm run build:preview
+node scripts/ui-probe.mjs "file:///D:/Codespace/SealPack/dist-preview" docs/shots
+```
+
+The probe needs a Chromium-family browser: it checks `CHROME_PATH`, then common install locations.
+**Edge works too** — same engine, same CDP, same command-line switches; screenshots were byte-identical.
+
+Six groups of assertions, then a `FAIL` list and an exit code:
+
+| Group | What it watches |
+| --- | --- |
+| A. Design switching | auto follows the system live; manual is not overridden by the system; each design remembers its own theme; both persist across reload |
+| B. Native feel | title bar height, caption buttons, status bar, 12 px body, `user-select: none`, motion tokens, focus ring, both material paths |
+| C. Interaction | context-menu keyboard semantics, tree roving tabindex, dialog `Esc` resolving the caller's promise, primary action on the left |
+| D. Wizard | five-step structure, jumping steps, the three hit areas staying independent, search narrowing, footer refresh after folding, template rebuild, run-all |
+| E. Option surface | grouped rendering, default labels, conditional parameters, preset wiring, parameters actually landing in the template, portable dropping shortcuts |
+| F. Regression fixes | step-bar tab semantics, the rescan button being wired, toasts being a live region, `writes` being consumed, password inputs |
+
+### Pitfalls the probe has hit
+
+- **Do not hard-code milliseconds as `167ms`** — Lightning CSS rewrites it to `.167s`; compare through `isMs()`.
+- **`color-mix()` computes to `color(srgb r g b / a)`**, not `rgba()`; parse alpha rather than matching a prefix.
+- **Geometry like tree indentation must be measured with `getBoundingClientRect()`**, never eyeballed from a
+  scaled screenshot.
+- **`press()` returns an expression string to evaluate**, not a promise.
+- **Elements inside `display: none` panels cannot take focus** — switch to the step first.
+- **Conditional display needs `hidden` plus an explicit `display: none`** — `.opt` is `display: flex`, so
+  `[hidden]` alone does not win.
+
+## Generator parity
+
+"Options → template" has two implementations: `defaults.rs` in Rust and `preview/render.ts` in the browser.
+
+```bash
+cd src-tauri && cargo test --lib dump_render_fixtures -- --ignored   # dump the fixture from Rust
+pnpm run check:render-parity                                         # compare against the TS side
+```
+
+The fixture is committed (22 cases covering defaults, every parameterised protection, conditional
+parameters, strong-name signing, XML escaping, split volumes, portable mode, the three encryption states,
+signing, LZMA parameters, unknown-value fallback and the official boundary values), so the second command
+runs without Rust. **Run it after touching either generator.**
+
+## Rust unit tests
+
+They concentrate where things break silently and are hardest to spot in the UI:
+
+- `defaults::tests` — the options-to-template mapping: arguments in the right place (`snKey` on `<module>`),
+  values normalised, parameters only present in legal combinations, unknown values falling back, and the
+  executable appearing exactly once in `[Files]`.
+- `model::tests` — `relative_to` semantics (case-insensitive, separator normalisation, multi-byte paths not
+  panicking), plus relative-isation and de-duplication in `auto_ignores` / `ignore_list`.
+- `pipeline::tests` — log masking must cover every known password parameter; artifact detection only
+  accepts files created or rewritten by this run.
+- `store::tests` — `\\?\` prefix normalisation, project-id path traversal defence, temp cleanup only
+  touching stale directories.
+- `hash::tests` — digests pinned to public test vectors (`"abc"` and the empty input), plus a check that no
+  bytes are lost across a 64 KB block boundary.
+- `download::tests` — extraction against realistically shaped archives, plus declaration self-consistency.
+- `tools::tests` — the three-level fallback and local Inno Setup detection.
+
+A few tests are **ignored by default** (`cargo test -- --ignored`): three of them really download from
+NuGet, GitHub and the official site and verify byte counts and checksums; one regenerates the fixture. They
+are **not** in CI — they depend on the network and third-party availability, and blocking a PR on that only
+creates noise.
+
+## Build and release
+
+```bash
+pnpm run app:build    # NSIS installer → src-tauri/target/release/bundle/nsis/
+```
+
+Release flow:
+
+```bash
+# 1. bump the version in all three places (release.yml fails if they disagree):
+#    package.json / src-tauri/tauri.conf.json / src-tauri/Cargo.toml
+# 2. commit, push, then tag:
+git tag -a v0.2.0 -m "..." && git push origin v0.2.0
+```
+
+Pushing a `v*` tag builds the installer and creates a GitHub Release with it attached.
+
+<Callout tone="warn">
+
+**The installer filename and the version shown in the UI come from `tauri.conf.json`; the tag only
+triggers the build.** Forget to bump and the release says v0.2.0 while installing 0.1.0 — which is why
+`release.yml` has a tag-versus-version check.
+
+</Callout>
+
+`tauri.conf.json` sets `targets: ["nsis"]` and `installMode: "currentUser"`. `bundle.resources` includes
+`resources/tools` (the bundled ILMerge and ConfuserEx) and `resources/isl` (the Chinese language pack) —
+templates themselves are not shipped, they are generated by Rust.
+
+## CI
+
+| Job | Runner | Content |
+| --- | --- | --- |
+| `frontend` | ubuntu-latest | `pnpm install --frozen-lockfile` → `build:preview` (includes `tsc --noEmit`) → `check:render-parity` |
+| `rust` | windows-latest | `cargo fmt --check` → `cargo clippy --all-targets -- -D warnings` → `cargo test` |
+| `ui-probe` | windows-latest | build the preview → run the CDP probe; screenshots kept 7 days as artifacts |
+
+Two Windows jobs rather than Linux: Windows is the only target platform. On Ubuntu you would install
+`webkit2gtk` and friends, and still not be testing the real environment.
+
+**Pushing to `main` does not trigger CI** — day-to-day commits rely on the local checklist, and the gates
+run at two points only: merging (PRs) and releasing (`v*` tags). A failed gate does not retract an already
+published installer, so run the checklist locally before releasing.
+
+## The minimum checklist before handing work back
+
+```bash
+pnpm run build:preview
+pnpm run check:render-parity                      # if you touched a template generator
+node scripts/ui-probe.mjs "file:///D:/Codespace/SealPack/dist-preview" docs/shots
+cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+```
+
+All green before committing. If the UI changed, glance at the corresponding screenshot in `docs/shots/` to
+confirm nothing shifted unexpectedly.
+
+**Two kinds of change need extra verification:**
+
+- **Changing a `[Setup]` directive or the language-pack reference** → compile once with a real ISCC.
+- **Changing the bundled tool directory** → run `cargo test -- --ignored` to verify versions and checksums.

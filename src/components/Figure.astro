@@ -1,0 +1,21 @@
+---
+interface Props {
+  src: string;
+  alt: string;
+  caption: string;
+  /** 说明文字前的短标签，默认自动编号「图 01」 */
+  label?: string;
+}
+
+const { src, alt, caption, label } = Astro.props;
+---
+
+<figure class="fig">
+  <a class="fig__zoom" href={src} target="_blank" rel="noreferrer noopener" title={alt}>
+    <img src={src} alt={alt} loading="lazy" decoding="async" />
+  </a>
+  <figcaption>
+    <span class="fig__no">{label ?? ''}</span>
+    <span>{caption}</span>
+  </figcaption>
+</figure>

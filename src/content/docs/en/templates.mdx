@@ -1,0 +1,103 @@
+---
+title: Templates & placeholders
+description: .crproj and .iss are generated in Rust; placeholders are substituted at run time. Once you edit by hand, switches stop overwriting it.
+group: Reference
+order: 3
+---
+
+## One definition per template
+
+`.crproj` and `.iss` are produced by `defaults.rs` on the Rust side (`encrypt_config` / `package_script`).
+The frontend only collects switches and calls `render_encrypt_config` / `render_package_script` to rebuild
+them.
+
+The project tracks the difference with `generated: bool`:
+
+| Value | Meaning |
+| --- | --- |
+| `generated: true` | the switches are the only source of truth; every change regenerates the template |
+| `generated: false` | you edited it under "advanced"; the template wins, not a character is touched |
+
+When `generated: false`, the UI shows a banner with "overwrite template with current options" so control
+can be handed back at any time. Both "restore default options" and "restore default template" set
+`generated` back to `true`.
+
+<Figure src="/shots/28-encrypt-template.png" alt="The advanced area: a collapsible template editor with placeholder chips" caption="Advanced — the editor is collapsed by default; placeholder chips sit above it" />
+
+## Placeholders
+
+Templates reference project values with `${key}` syntax, substituted at **run time** (not while you edit).
+`${key}` rather than `{key}` avoids colliding with Inno's own `{app}` and `{#define}` constants.
+
+| Placeholder | Meaning |
+| --- | --- |
+| `${id}` | project id (GUID) |
+| `${name}` | project name |
+| `${root}` | directory containing the executable |
+| `${exe}` | executable filename including extension |
+| `${exe_stem}` | executable filename without extension |
+| `${exe_path}` | full path to the executable |
+| `${output}` | installer output directory |
+| `${version}` | version string |
+| `${password}` | installer password |
+| `${ignore}` | packaging excludes (merged assemblies plus the backup, comma separated) |
+
+Clickable placeholder chips at the top of the advanced area insert them at the caret.
+
+## The shape of the packaging script
+
+The generated `.iss` contains two `Source` lines:
+
+```ini
+Source: "${root}\${exe}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "${root}\*"; Excludes: "${ignore},${exe}"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+```
+
+The second line must exclude the executable (`${exe}`), or the same file is packed twice — Inno reports a
+duplicate and the size accounting double-counts. `${ignore}` always contains the backup, so the string
+never starts with a stray comma.
+
+## How the ConfuserEx config is generated
+
+Protections inside `<rule>` are emitted in a fixed order (`model.rs::enabled_protections`). The UI summary
+uses the same order, so reading them side by side never goes out of step:
+
+```
+anti ildasm → anti debug → anti dump → anti tamper → constants
+→ ctrl flow → invalid metadata → rename → harden → ref proxy → resources
+```
+
+Protections with parameters emit `<argument>` elements, and **values are written explicitly even when they
+equal ConfuserEx's own default** — the tool's position is that the UI switches are the single source of
+truth, and the template should show what each switch produced:
+
+| Protection | Arguments |
+| --- | --- |
+| `anti debug` | `mode` |
+| `anti tamper` | `mode`, `key` |
+| `constants` | `mode`, `elements`, `cfg` |
+| `ctrl flow` | `type`, `predicate` (switch only), `depth` (expression/x86 only), `intensity`, `junk` |
+| `rename` | `mode`, `password` (reversible only, when set), `renameArgs`, `renEnum`, `renPublic` |
+| `ref proxy` | `mode`, `internal` |
+| `resources` | `mode` |
+| everything else | no arguments; self-closing `<protection id="…" />` |
+
+`<module>` carries `path` and optional `snKey` / `snKeyPass`; `<project>` carries `outputDir` / `baseDir`
+and optional `seed` / `debug`; `<packer id="compressor" />` appears when `compress` is on.
+
+## Two implementations, one fixture
+
+The browser preview has no Rust, so `preview/render.ts` mirrors `defaults.rs`. Once they drift, the
+template shown in the preview is not the template users get — and drift looks plausible in a preview; it
+only surfaces on a real machine.
+
+`pnpm run check:render-parity` compares the Rust dump against the TypeScript output **character by
+character**. The fixture (`docs/fixtures/render-fixtures.json`, 22 cases) is committed, so the second
+command runs without Rust installed.
+
+<Callout tone="pitfall">
+
+**Run the parity check after touching either generator.** When adding a boundary case, add it to
+`defaults.rs::fixture_cases` first and regenerate the fixture — otherwise the new case is never compared.
+
+</Callout>

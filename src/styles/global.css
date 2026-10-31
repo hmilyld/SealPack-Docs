@@ -1,0 +1,26 @@
+@import 'tailwindcss';
+@import './fonts.css';
+@import './tokens.css';
+@import './site.css';
+
+/* 暗色由 <html data-theme="dark"> 决定，而不是 prefers-color-scheme：
+   用户手动切换过之后，系统设置不该再把页面拉回去。 */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+@theme {
+  --font-sans: 'Instrument Sans', ui-sans-serif, 'PingFang SC', 'Microsoft YaHei UI',
+    'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, 'Microsoft YaHei',
+    monospace;
+
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-paper-3: var(--paper-3);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-rule: var(--rule);
+  --color-rule-2: var(--rule-2);
+  --color-accent: var(--accent);
+}

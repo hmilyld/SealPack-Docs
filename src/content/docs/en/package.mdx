@@ -1,0 +1,85 @@
+---
+title: Packaging & excludes
+description: Automatic versus custom excludes, why a wildcard cannot contain a comma, and what "writes Excludes" actually produces.
+group: Getting started
+order: 3
+---
+
+## Upper half: files kept out of the installer
+
+The installer sweeps the executable's directory, but some files should never go in. The list has two kinds:
+
+**Automatic entries** are derived from the previous two steps and cannot be removed here:
+
+- the assemblies being merged — they are already inside the executable, shipping them again duplicates them;
+- the backup `<name>.bakup` — it is a way back, not an artifact.
+
+They are shown read-only so you can see *why* a file is missing from the installer. An invisible exclude
+rule is more suspicious than a visible one.
+
+**Custom entries** accept relative paths and Inno wildcards, managed through "add file / add folder /
+add wildcard".
+
+<Figure src="/shots/04-package.png" alt="The packaging step: exclude list above, installer options below" caption="④ Package — excludes on top, installer options below" />
+
+## A wildcard cannot contain a comma
+
+Inno's `Excludes` is a comma-separated list, so a wildcard with a comma inside is split into two entries —
+the first loses its tail, the second gains a head, and neither matches what you meant. The UI refuses it
+at entry time.
+
+Expand "writes Excludes" to see the final string:
+
+```ini
+Excludes: "*.pdb,app.bakup,Newtonsoft.Json.dll"
+```
+
+
+<Figure src="/shots/21-package-excludes.png" alt="Packaging excludes: automatic and custom entries" caption="Excludes — automatic entries are read-only; custom ones take relative paths and wildcards" />
+
+## The executable is included exactly once
+
+The generated `.iss` has two `Source` lines:
+
+```ini
+Source: "{#Root}\App.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#Root}\*"; Excludes: "{#Ignore},App.exe"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+```
+
+The second line must exclude the executable as well, or the same file is packed twice — Inno reports a
+duplicate file and the size accounting double-counts. The automatic entries always include the backup, so
+the string never starts with a stray comma.
+
+<Callout tone="verified">
+
+This is pinned by assertions: `defaults::tests` checks per case that the executable appears exactly once
+in `[Files]`, and six representative configurations were compiled with a real Inno Setup 6.7, zero
+warnings. See [limits & official references](/en/docs/appendix).
+
+</Callout>
+
+## Lower half: installer options
+
+Five fixed groups: compression, packaging mode, encryption and signing, install behaviour, integrity
+checks. Every option's semantics and default is listed in [package options](/en/docs/package-options);
+three things are worth flagging here:
+
+1. **Compression is "algorithm + level" in a single value** (`lzma2/max`), not two dropdowns.
+2. **A dictionary size of 0 means the line is omitted**, leaving Inno to derive it from the level — almost
+   always the better choice.
+3. **The encryption default differs from Inno's**: Inno defaults to `no`, SealPack defaults to `yes`.
+
+## Checksum manifest
+
+If you picked an algorithm, packaging writes `checksums-<algo>.txt` into the output directory in
+`sha256sum` format — `<digest>  <filename>`, two spaces — so existing tools can verify it:
+
+```bat
+certutil -hashfile Setup.exe sha256
+:: or
+sha256sum -c checksums-sha256.txt
+```
+
+The manifest only contains files **created or rewritten by this build** (a snapshot of the output
+directory before and after, plus modification times), so unrelated files sitting in the folder are never
+counted.

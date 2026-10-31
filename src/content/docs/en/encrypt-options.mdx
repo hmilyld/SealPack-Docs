@@ -1,0 +1,124 @@
+---
+title: Encrypt options
+description: 36 ConfuserEx protections in five groups, each with its default, when to use it, and what it writes into the template.
+group: Reference
+order: 1
+---
+
+## Start from a preset
+
+The four presets put the switches below into a sensible position in one go; individual tuning still works
+afterwards. A stage with no protection enabled is skipped automatically at run time.
+
+| Preset | Positioning |
+| --- | --- |
+| None | merge and package only |
+| Basic | internal tools, quick verification: renaming (letters) plus constant encryption, almost no startup cost |
+| Standard (recommended) | normal commercial distribution: renaming, constant encryption, control flow, anti-debug — low compatibility risk |
+| Aggressive | high-value licensed software: adds anti-tamper, anti-dump and hardening. Compatibility risk; always regression test |
+
+Every option is labelled "default X" in the UI and changes colour once modified; "restore defaults" resets
+the whole group from the schema. Options that take parameters only appear once their protection is on —
+a disabled protection should not keep its parameters on screen.
+
+<Figure src="/shots/03-encrypt.png" alt="The obfuscation step: four presets above, grouped options below" caption="③ Obfuscate — presets on top, grouped options below" />
+
+<Figure src="/shots/22-encrypt-options.png" alt="Encrypt options, each labelled with its default and use case" caption="Every option carries a default and a one-line use case; changed ones are tinted" />
+
+
+## Group 1 · Protection strength
+
+| Option | Default | Notes |
+| --- | --- | --- |
+| `preset` | `normal` | Written to `<rule preset="…">`. Explicitly enabled protections override same-named entries in the preset, so this behaves as a fallback strength |
+
+## Group 2 · Anti-decompile and anti-tamper
+
+The goal is to make static analysis expensive and modifications detectable. None of these costs much
+startup time.
+
+| Option | Default | Notes |
+| --- | --- | --- |
+| `antiIldasm` | off | Stops ILDASM and friends from opening the assembly. Free |
+| `antiDebug` | off | Detects debuggers / profilers and blocks attaching. Unfriendly to profiling sessions |
+| `debugMode` | `safe` | Anti-debug engine: `safe` uses managed APIs (best compatibility) / `win32` uses WinAPI (Windows only) / `antinet` is strongest but incompatible with Mono |
+| `antiTamper` | off | Encrypts method bodies with a whole-module checksum: any changed byte stops the program from loading. Side effect: method bodies are empty in decompilers, and the module becomes unverifiable |
+| `tamperMode` | `normal` | When the check runs: `normal` once at startup / `jit` before each method is compiled (harder to bypass, worse compatibility) |
+| `tamperKey` | `normal` | Key derivation: `normal` static algorithm / `dynamic` generated at runtime |
+| `antiDump` | off | Prevents dumping the decrypted assembly from memory. WinAPI-based, Windows only |
+| `invalidMetadata` | off | Writes malformed metadata so decompilers fail to parse. No runtime effect, but some scanners false-positive |
+| `harden` | off | Hardens the runtime of the other protections, raising the cost of unpacking. Only meaningful with other protections enabled |
+
+## Group 3 · Code obfuscation
+
+The goal is code that cannot be read after decompiling, or compiled back. Renaming is the most effective
+and the riskiest for reflection-heavy programs.
+
+| Option | Default | Notes |
+| --- | --- | --- |
+| `rename` | off | Replaces class and method names with meaningless ones. Breaks programs that look symbols up by name or serialise across assemblies |
+| `renameMode` | `unicode` | `unicode` hardest to read but breaks reflection / `letters` best compatibility / `sequential` emits `symbols.map` for reverse lookup from crash logs / `decodable` decodable / `reversible` encrypts names with a password / `retain` no renaming |
+| `renamePassword` | empty | Only used by `reversible`. After shipping, crash logs can be mapped back to original names |
+| `renameArgs` | **on** | Renames method parameters too (they show up in stack traces and reflection) |
+| `renEnum` | off | Renames enum members. Enum names are often serialised as strings or written into config — check before enabling |
+| `renPublic` | off | Renames public members. **Do not** enable for a library called from outside — callers look members up by name |
+| `controlFlow` | off | Shuffles control flow inside methods. Noticeably larger output and slower execution |
+| `cfType` | `switch` | `switch` rebuilds a state machine (recommended) / `jump` inserts jumps to produce spaghetti, which yields unverifiable modules |
+| `cfPredicate` | `normal` | How the state variable is stored: `normal` directly / `expression` encoded in a dynamic expression / `x86` native x86 expression (breaks AnyCPU) |
+| `cfIntensity` | `60` | 0–100. Lower means each basic block is sliced more finely: harder to read, slower to run |
+| `cfDepth` | `4` | 1–16, only when the predicate is `expression` / `x86`. Deeper is harder to reverse and slower to compile |
+| `cfJunk` | off | Injects never-executed code to distract a reader. Larger output, unverifiable modules |
+| `refProxy` | off | Turns direct field / method references into indirect calls, hiding who calls whom |
+| `refMode` | `mild` | `mild` adds one indirection layer (cheap) / `strong` uses dynamic delegates (harder to reverse, slower) |
+| `refInternal` | off | By default only cross-assembly calls are proxied; enabling this proxies intra-assembly calls too |
+
+## Group 4 · Data encryption (symmetric)
+
+Constants and embedded resources are stored encoded and decoded at run time — the most direct "symmetric
+encryption" surface in a .NET assembly. The keys are generated by ConfuserEx and hidden inside the decoder.
+
+| Option | Default | Notes |
+| --- | --- | --- |
+| `constants` | off | Encrypts string and number constants, so decompiled code no longer shows keywords, endpoints or key fragments |
+| `constMode` | `normal` | `normal` static algorithm with random parameters / `dynamic` generates the algorithm in place / `x86` emits native x86 expressions (strongest, breaks AnyCPU) |
+| `constElements` | `SI` | Which constants to encrypt: `S` strings, `N` numbers, `P` common values (0/1/-1), `I` array initialisers, combinable. `P` must come with `S` or `N` |
+| `constCfg` | off | Binds decoding to the control-flow state variable, making static recovery much harder, at a perceptible runtime cost |
+| `resources` | off | Encrypts embedded resources (icons, config files, embedded scripts). Decoded on load, so startup is slightly slower. If the compressor is on, keep only one of the two to avoid compressing twice |
+| `resMode` | `normal` | `normal` static algorithm with random parameters / `dynamic` generates it in place |
+
+## Group 5 · Signing and reproducibility (asymmetric / hashing)
+
+| Option | Default | Notes |
+| --- | --- | --- |
+| `snKeyPath` | empty | Strong-name key (`.snk` / `.pfx`). Signs the assembly with an RSA private key so the runtime can verify it was not replaced. Empty means no signing |
+| `snKeyPass` | empty | Only needed when the path above is a `.pfx` container. `.snk` files usually have no password |
+| `seed` | empty | ConfuserEx randomises its encryption parameters. A fixed seed makes identical input produce byte-identical output |
+| `debugSymbols` | off | Keeps the `.pdb`. Useful for mapping stack traces in production, usually wrong to ship to users |
+| `compress` | **on** | Compresses the assembly before loading: smaller, slightly slower to start. With resource encryption enabled it compresses twice — pick one |
+
+Generating a strong-name key:
+
+```bat
+sn -k app.snk
+```
+
+<Callout tone="pitfall">
+
+**`snKey` / `snKeyPass` belong on `<module>`, not `<project>`.** On `project` ConfuserEx silently ignores
+them, and signing looks configured but never takes effect — one of the pitfalls this project pins with a
+unit test.
+
+</Callout>
+
+<Figure src="/shots/27-option-conditional.png" alt="Parameterised options appearing only when their protection is on" caption="Conditional display — a disabled protection keeps its parameters off screen" />
+
+## Compatibility notes
+
+- `cfPredicate=x86` and `constMode=x86` break AnyCPU: they emit native x86 instructions that cannot run in
+  a 64-bit process.
+- `antiDump` and `debugMode=win32` depend on WinAPI, so they are Windows-only.
+- `debugMode=antinet` is the strongest and incompatible with Mono.
+- `antiTamper`, `cfJunk` and `cfType=jump` all produce **unverifiable** modules, which some environments
+  refuse to load.
+
+To see where these switches land in the template, go to [templates & placeholders](/en/docs/templates).

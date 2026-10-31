@@ -1,0 +1,411 @@
+---
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import { getDocs, docUrl, readingTime } from '~/lib/docs';
+import { GROUP_ORDER, ui, type Locale } from '~/lib/i18n';
+import { site } from '~/lib/site';
+
+interface Props {
+  locale: Locale;
+}
+
+type Seg = string | { code: string } | { href: string; label: string };
+
+type Copy = {
+  kicker: string;
+  titleA: string;
+  titleB: string;
+  lede: string;
+  ctaPrimary: string;
+  ctaSecondary: string;
+  spec: { label: string; value: string }[];
+  stages: { num: string; role: string; tool: string; desc: string; tag: string }[];
+  what: {
+    num: string;
+    title: string;
+    paragraphs: Seg[][];
+    points: { n: string; strong: string; text: Seg[] }[];
+  };
+  skins: { num: string; title: string; note: string; caption: string };
+  docs: { num: string; title: string };
+  groupNotes: Record<string, string>;
+  cta: { label: string; line: Seg[]; button: string };
+};
+
+const copy: Record<Locale, Copy> = {
+  zh: {
+    kicker: `Windows Desktop · v${site.version}`,
+    titleA: '把三个命令行工具',
+    titleB: '收进一个窗口',
+    lede: '合并、加密、打包，原本是三份文档、两份手写配置和三次命令行调用。SealPack 把它们固定成一个工程：选一次主程序，改几个开关，点一次执行。',
+    ctaPrimary: '读文档',
+    ctaSecondary: '下载安装包',
+    spec: [
+      { label: '平台', value: 'Windows 10 1809+ / 11' },
+      { label: '后端', value: 'Rust · Tauri 2' },
+      { label: '前端', value: 'TypeScript · Tailwind 4' },
+      { label: '版本', value: site.version },
+      { label: '许可', value: 'MIT' },
+      { label: '界面', value: '简体中文 · 两套皮肤' },
+    ],
+    stages: [
+      {
+        num: '①',
+        role: '程序合并',
+        tool: 'ILMerge',
+        desc: '把多个程序集合并进主程序，减少分发文件。合并前自动备份主程序。',
+        tag: 'ILMerge.exe',
+      },
+      {
+        num: '②',
+        role: '程序加密',
+        tool: 'ConfuserEx',
+        desc: '混淆、常量与资源加密、反篡改。36 项开关，四档预设。',
+        tag: 'ConfuserEx.exe',
+      },
+      {
+        num: '③',
+        role: '安装包打包',
+        tool: 'Inno Setup',
+        desc: '压缩、分卷、安装口令、整包加密与代码签名，产出可直接分发。',
+        tag: 'ISCC.exe',
+      },
+    ],
+    what: {
+      num: '01',
+      title: '它做什么，不做什么',
+      paragraphs: [
+        [
+          '三个工具各自都很成熟，问题在于它们之间没有接口。要把一份 ',
+          { code: '.exe' },
+          ' 变成可发布的安装包，你得读三份文档、手写两份配置（',
+          { code: '.crproj' },
+          ' 与 ',
+          { code: '.iss' },
+          '）、记住每个参数写在哪一层，然后在三个命令行窗口之间来回贴路径。',
+        ],
+        [
+          'SealPack 把这套动作固定下来：主程序、输出目录、待合并的程序集、加密开关、打包选项与排除项都存在一个 JSON 里，改完立刻重算模板，点一次执行就跑完三步。界面上的开关与真正写进配置文件的东西由同一份 Rust 代码产出，所以它们不可能对不上。',
+        ],
+        [
+          '它刻意不重新发明轮子 —— 混淆是 ConfuserEx 做的，安装包加密是 Inno Setup 做的。这个项目里没有一行自研密码学。',
+        ],
+      ],
+      points: [
+        {
+          n: '01',
+          strong: '选项只有一份定义。',
+          text: ['加密与打包的每个开关都是 schema 里的一条，界面按它渲染，回归探针按它断言。'],
+        },
+        {
+          n: '02',
+          strong: '模板由 Rust 生成。',
+          text: ['前端只收集开关，模板永远由后端算出来；浏览器侧镜像有逐字一致性校验。'],
+        },
+        {
+          n: '03',
+          strong: '失败即停。',
+          text: ['某一步失败就停下并保留日志，不会拿半成品继续往下跑。'],
+        },
+        {
+          n: '04',
+          strong: '原地覆盖前先备份。',
+          text: ['首次执行把主程序存成 ', { code: '.bakup' }, '，且默认不进安装包。'],
+        },
+      ],
+    },
+    skins: {
+      num: '02',
+      title: '两套皮肤，一份 DOM',
+      note: '「瑞士技术网格」是暖白纸底与朱红，「终端」是近黑底与荧光青。差异 100% 由 CSS 表达，标题栏上点一下就切；明暗另有「跟随系统 / 深色 / 浅色」三态，每套皮肤各记自己的明暗。',
+      caption: '终端 · 深色 —— 与「项目简介」里那张截图是同一份 DOM，只换了 CSS',
+    },
+    docs: { num: '03', title: '文档' },
+    groupNotes: {
+      概览: '它是什么、跑在哪、需要装什么',
+      上手: '五步向导与界面上每个操作的含义',
+      参考: '逐个选项的语义、默认值与边界值',
+      深入: '架构、不变量，以及开发与测试',
+    },
+    cta: {
+      label: '开始',
+      line: ['第一次用，先读', { href: '/docs/install', label: '安装与系统要求' }, '，再照', { href: '/docs/wizard', label: '五步向导' }, '跑一遍。'],
+      button: '进入文档',
+    },
+  },
+  en: {
+    kicker: `Windows desktop · v${site.version}`,
+    titleA: 'Three command-line tools,',
+    titleB: 'one window',
+    lede: 'Merge, obfuscate, package — that used to mean three manuals, two hand-written config files and three terminal sessions. SealPack turns the routine into one project: pick the executable once, flip a few switches, run it.',
+    ctaPrimary: 'Read the docs',
+    ctaSecondary: 'Download',
+    spec: [
+      { label: 'Platform', value: 'Windows 10 1809+ / 11' },
+      { label: 'Backend', value: 'Rust · Tauri 2' },
+      { label: 'Frontend', value: 'TypeScript · Tailwind 4' },
+      { label: 'Version', value: site.version },
+      { label: 'License', value: 'MIT' },
+      { label: 'UI', value: 'Chinese · two skins' },
+    ],
+    stages: [
+      {
+        num: '①',
+        role: 'Merge',
+        tool: 'ILMerge',
+        desc: 'Fold assemblies into the main executable so you ship fewer files. The original is backed up first.',
+        tag: 'ILMerge.exe',
+      },
+      {
+        num: '②',
+        role: 'Obfuscate',
+        tool: 'ConfuserEx',
+        desc: 'Renaming, constant and resource encryption, anti-tamper. 36 switches across four presets.',
+        tag: 'ConfuserEx.exe',
+      },
+      {
+        num: '③',
+        role: 'Package',
+        tool: 'Inno Setup',
+        desc: 'Compression, split volumes, install password, full-package encryption and code signing.',
+        tag: 'ISCC.exe',
+      },
+    ],
+    what: {
+      num: '01',
+      title: 'What it does — and what it does not',
+      paragraphs: [
+        [
+          'Each of the three tools is mature on its own. The problem is that nothing connects them. Turning an ',
+          { code: '.exe' },
+          ' into a shippable installer means reading three manuals, writing two config files (',
+          { code: '.crproj' },
+          ' and ',
+          { code: '.iss' },
+          '), remembering which parameter belongs to which layer, then pasting paths between three terminal windows.',
+        ],
+        [
+          'SealPack fixes that routine into a project: the executable, output directory, assemblies to merge, protection switches, packaging options and excludes all live in one JSON file. Change a switch and the template is recomputed; press run and the three stages execute in order. What you see in the UI and what gets written into the config come from the same Rust code, so they cannot drift apart.',
+        ],
+        [
+          'It deliberately reinvents nothing — obfuscation is ConfuserEx\u2019s job, installer encryption is Inno Setup\u2019s. There is no home-grown cryptography in this project.',
+        ],
+      ],
+      points: [
+        {
+          n: '01',
+          strong: 'One definition per option.',
+          text: ['Every encrypt and packaging switch is a single schema entry; the UI renders from it and the regression probe asserts from it.'],
+        },
+        {
+          n: '02',
+          strong: 'Templates come from Rust.',
+          text: ['The frontend only collects switches; templates are always produced by the backend, and the browser-side mirror is checked byte for byte.'],
+        },
+        {
+          n: '03',
+          strong: 'Fail fast.',
+          text: ['A failing stage stops the run and keeps the log. Half-finished artifacts never flow into the next stage.'],
+        },
+        {
+          n: '04',
+          strong: 'Back up before overwriting.',
+          text: ['The first run saves the executable as ', { code: '.bakup' }, ', and that backup stays out of the installer by default.'],
+        },
+      ],
+    },
+    skins: {
+      num: '02',
+      title: 'Two skins, one DOM',
+      note: '\u201CSwiss grid\u201D is warm paper with vermilion; \u201CTerminal\u201D is near-black with cyan. The difference is 100% CSS and switches from the title bar. Light and dark are a separate axis: auto, dark, light — each skin remembers its own.',
+      caption: 'Terminal · dark — the same DOM as the screenshot in the introduction, only the CSS differs',
+    },
+    docs: { num: '03', title: 'Documentation' },
+    groupNotes: {
+      Overview: 'What it is, where it runs, what to install',
+      'Getting started': 'The wizard, and what every control does',
+      Reference: 'Per-option semantics, defaults and limits',
+      Internals: 'Architecture, invariants, development and tests',
+    },
+    cta: {
+      label: 'Start here',
+      line: ['First time? Read ', { href: '/en/docs/install', label: 'install & requirements' }, ', then walk the ', { href: '/en/docs/wizard', label: 'five-step wizard' }, '.'],
+      button: 'Open the docs',
+    },
+  },
+};
+
+const { locale } = Astro.props;
+const dict = ui[locale];
+const c = copy[locale];
+const docs = await getDocs(locale);
+
+const groups = GROUP_ORDER[locale]
+  .map((group) => ({
+    group,
+    note: c.groupNotes[group],
+    items: docs.filter((d) => d.data.group === group),
+  }))
+  .filter((g) => g.items.length > 0);
+---
+
+<BaseLayout
+  locale={locale}
+  title={site.name}
+  description={locale === 'en'
+    ? 'SealPack docs: a merge / obfuscate / package workbench for Windows. ILMerge, ConfuserEx and Inno Setup behind one three-stage pipeline.'
+    : 'SealPack 文档：Windows 桌面端的程序合并 / 加密 / 打包工作台。把 ILMerge、ConfuserEx、Inno Setup 串成一条三阶段流水线。'}
+>
+  <main id="main">
+    <div class="home">
+      <section class="cover">
+        <div class="cover__main">
+          <p class="cover__kicker">{c.kicker}</p>
+          <h1 class="cover__title">{c.titleA}<br /><span>{c.titleB}</span></h1>
+          <p class="cover__lede">{c.lede}</p>
+          <div class="cover__cta">
+            <a class="btn" href={locale === 'en' ? '/en/docs/intro' : '/docs/intro'}>
+              {c.ctaPrimary} <span aria-hidden="true">→</span>
+            </a>
+            <a class="btn btn--ghost" href={site.releases} target="_blank" rel="noreferrer noopener">
+              {c.ctaSecondary} <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+        </div>
+
+        <aside class="cover__aside" aria-label={locale === 'en' ? 'Project facts' : '项目参数'}>
+          <dl class="spec">
+            {
+              c.spec.map((row) => (
+                <div class="spec__row">
+                  <dt>{row.label}</dt>
+                  <dd>{row.value}</dd>
+                </div>
+              ))
+            }
+          </dl>
+        </aside>
+      </section>
+
+      <div class="pipeline">
+        {
+          c.stages.map((stage) => (
+            <div class="pipe">
+              <p class="pipe__num">
+                {stage.num} {stage.role}
+              </p>
+              <p class="pipe__tool">{stage.tool}</p>
+              <p class="pipe__role">{stage.desc}</p>
+              <span class="pipe__tag">{stage.tag}</span>
+            </div>
+          ))
+        }
+      </div>
+
+      <section class="section">
+        <div class="section__head">
+          <span class="section__num">{c.what.num}</span>
+          <h2 class="section__title">{c.what.title}</h2>
+        </div>
+        <div class="two-col">
+          <div>
+            {
+              c.what.paragraphs.map((para) => (
+                <p>
+                  {para.map((seg) =>
+                    typeof seg === 'string' ? (
+                      seg
+                    ) : 'code' in seg ? (
+                      <code>{seg.code}</code>
+                    ) : (
+                      <a href={seg.href}>{seg.label}</a>
+                    ),
+                  )}
+                </p>
+              ))
+            }
+          </div>
+          <div>
+            <ul class="point-list">
+              {
+                c.what.points.map((point) => (
+                  <li>
+                    <b>{point.n}</b>
+                    <span>
+                      <strong>{point.strong}</strong>
+                      {point.text.map((seg) =>
+                        typeof seg === 'string' ? seg : 'code' in seg ? <code>{seg.code}</code> : <a href={seg.href}>{seg.label}</a>,
+                      )}
+                    </span>
+                  </li>
+                ))
+              }
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section__head">
+          <span class="section__num">{c.skins.num}</span>
+          <h2 class="section__title">{c.skins.title}</h2>
+        </div>
+        <p class="section__note">{c.skins.note}</p>
+        <figure class="fig">
+          <img src="/shots/06-terminal-dark.png" alt={c.skins.title} loading="lazy" />
+          <figcaption>
+            <span class="fig__no"></span>
+            <span>{c.skins.caption}</span>
+          </figcaption>
+        </figure>
+      </section>
+
+      <section class="section">
+        <div class="section__head">
+          <span class="section__num">{c.docs.num}</span>
+          <h2 class="section__title">{c.docs.title}</h2>
+        </div>
+        <div class="doc-index">
+          {
+            groups.map((group) => (
+              <div class="doc-index__group">
+                <p class="doc-index__title">{group.group}</p>
+                {group.items.map((item) => (
+                  <a class="doc-index__link" href={docUrl(item, locale)}>
+                    <span class="doc-index__name">{item.data.title}</span>
+                    <span class="doc-index__meta">
+                      {dict.minutes(readingTime(item.body, locale))}
+                    </span>
+                  </a>
+                ))}
+                <p style="margin:10px 0 0; font-size:12.5px; color:var(--faint); line-height:1.6;">
+                  {group.note}
+                </p>
+              </div>
+            ))
+          }
+        </div>
+      </section>
+
+      <section class="section home-cta">
+        <div>
+          <p class="section__num">{c.cta.label}</p>
+          <p class="home-cta__line">
+            {
+              c.cta.line.map((seg) =>
+                typeof seg === 'string' ? seg : 'code' in seg ? <code>{seg.code}</code> : <a href={seg.href}>{seg.label}</a>,
+              )
+            }
+          </p>
+        </div>
+        <div class="home-cta__actions">
+          <a class="btn" href={locale === 'en' ? '/en/docs/intro' : '/docs/intro'}>
+            {c.cta.button} <span aria-hidden="true">→</span>
+          </a>
+          <a class="btn btn--ghost" href={site.forum} target="_blank" rel="noreferrer noopener">
+            {dict.forum} <span aria-hidden="true">↗</span>
+          </a>
+        </div>
+      </section>
+    </div>
+  </main>
+</BaseLayout>

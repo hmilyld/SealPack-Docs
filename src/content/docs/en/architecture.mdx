@@ -1,0 +1,189 @@
+---
+title: Architecture & invariants
+description: Module map, data flow, and the constraints that bite — every one of them corresponds to a bug that actually happened.
+group: Internals
+order: 1
+---
+
+## Stack and shape
+
+A **Windows desktop app**: Rust backend (Tauri 2) plus a plain TypeScript frontend with no UI framework
+(TailwindCSS 4 only for the reset and a few utilities). Layout, state and interaction are all hand-written,
+and both visual designs share one DOM.
+
+Tauri rather than Electron, for a simple reason: the app needs to spawn three command-line tools, read and
+write local files, and tint the window. The render layer is a settings screen and a log panel — not worth
+shipping an entire browser runtime for.
+
+## Module map
+
+```
+frontend (src/)
+├── main.ts              UI orchestration and state (wizard, title bar, skin switcher, context menu)
+├── types.ts             shared types + step metadata + the option schema (single source of truth)
+├── api.ts               Tauri command and event wrappers
+├── desktop.ts           desktop behaviour layer (shortcut table, browser defaults, first-frame show)
+├── skin.ts              single state source for skin / theme / materials
+├── util.ts              small shared helpers (HTML escaping, filename, relative paths)
+├── style.css            style entry (layered imports)
+├── styles/              tokens.css (fallbacks) → skins/*.css → components.css
+└── components/
+    ├── file-tree.ts     the tree (three hit areas + search / type / selected-only)
+    ├── file-picker.ts   picker = tree plus a layer of "find the file" tools
+    ├── log-panel.ts     run log (line cap + live region)
+    ├── modal.ts         dialog shell plus confirm / prompt / new-project dialogs
+    ├── settings-dialog.ts  settings panel
+    ├── context-menu.ts  hand-drawn context menu
+    └── toast.ts         toasts
+
+backend (src-tauri/src/)
+├── lib.rs               assembly: plugins, window, command registry, startup fallback
+├── commands.rs          Tauri command layer (validation, options ↔ template alignment)
+├── model.rs             domain model: Project / EncryptOptions / PackageOptions / event payloads
+├── store.rs             project persistence, app state, temp cleanup
+├── defaults.rs          options → templates, plus the Inno boundary constants
+├── template.rs          ${key} placeholder rendering
+├── pipeline.rs          three-stage async process orchestration (backup, streaming log, artifacts)
+├── tools.rs             toolchain resolution plus local detection
+├── download.rs          tool downloads (source declarations, checksums, extraction, silent install)
+├── hash.rs              checksum manifests (SHA-256 / SHA-1 / MD5, streaming)
+├── runtime.rs           .NET Framework detection (registry)
+└── settings.rs          global settings (tool paths)
+```
+
+## Data flow
+
+```
+user flips a switch in the wizard
+      │
+      ├─ the option is written to current.encryptOptions / current.packageOptions
+      │
+      ├─ if generated == true → invoke render_encrypt_config / render_package_script
+      │        (Rust generates the template text) → written back to the project
+      │
+      ├─ 600 ms debounce → invoke save_project → projects/<id>.json
+      │
+      └─ press run → invoke run_stage
+               │
+               ├─ Rust: save_project first (the disk is authoritative), then the pipeline
+               ├─ resolve the toolchain per stage → back up the executable (first run) → write temp config
+               ├─ spawn the child process, emit "pipeline:log" per stdout / stderr line
+               ├─ emit "pipeline:stage" with stage status
+               └─ packaging: diff the output directory before and after, then optionally hash the artifacts
+```
+
+The frontend holds no template semantics: it collects switches, Rust always produces the template. That
+single constraint makes it impossible for "what the UI says" and "what gets written" to drift.
+
+## Invariants
+
+Every item below corresponds to a bug that actually happened. Read this before changing the related code.
+
+### Options and templates
+
+**Adding an option means editing the schema only.** Encrypt and packaging options are declared in
+`src/types.ts` (`ENCRYPT_GROUPS` / `PACKAGE_GROUPS`) with `kind` / `def` / `when` / `writes`; the UI renders
+from them and the regression probe asserts from them. Do not hand-write render code for one option.
+
+**Templates come only from Rust.** The browser preview has no Rust, so `preview/render.ts` mirrors
+`defaults.rs`. Once they drift, the preview shows a template users will never get. `check:render-parity`
+compares them character by character.
+
+**Inno boundary values live at the top of `defaults.rs`.** `LZMA_DICT_MIN_KB`, `LZMA_DICT_MAX_KB`,
+`LZMA_THREADS_MAX`, `SLICE_MIN_BYTES`, `SLICE_MAX_BYTES`, `SLICES_MIN`, `SLICES_MAX` are copied from the
+official docs, with same-named constants in `preview/render.ts`.
+
+### Async and state
+
+**Async writes into module-level state need an epoch guard.** `ensureTree` / `refreshIgnores` write to
+module-level state. If a stale request resolves after a newer one during a project switch, the previous
+project's tree is mounted onto the current one and `picker.onChange` writes A's paths into B's
+`mergeDlls`. Each has a monotonic `epoch` and discards mismatches — and **the two counters must stay
+separate**, because checking a file triggers an excludes refresh and a shared counter makes an in-flight
+scan invalidate itself. Every early return also has to land `scanning = false`.
+
+**Snapshot `current` before any long await.** `runStage` / `runAll` capture `proj` at entry and verify
+`current.id === proj.id` before every write-back. The project list is disabled during a run, but shortcuts
+and programmatic paths can still switch.
+
+**Flush the debounced save before switching projects.** `scheduleSave` is a 600 ms debounce whose callback
+captures `proj`; `selectProject` / `refreshProjects` call `flushPendingSave()` first, and deleting the
+current project calls `discardPendingSave()`.
+
+**When one fact appears twice in the UI, refresh both together.** `syncStepSubs()` is the single exit point
+for every change path, refreshing the step bar and the run pane at once. See
+[the five-step wizard](/en/docs/wizard).
+
+### Styles and skins
+
+**The cascade trap.** Rules in `components.css` are wrapped in `@layer components`, while `skins/*.css` are
+**unlayered**. Unlayered author styles beat layered ones at any specificity, so a plain rule in a skin
+overrides a component's `:hover`. **Consequence: a skin that needs to override a component's hover or
+active state must do so in the skin file.**
+
+**The fallbacks in `tokens.css` are not redundant.** An undefined custom property invalidates the whole
+declaration rather than falling back to something visible — which shows up as an element that mysteriously
+has no border.
+
+**Never fork the DOM per skin.** Skin and theme live as root attributes on `<html>`; dialogs and toasts
+switch at the same time, so there is no "some elements still wear the old skin" state.
+
+### Platform and toolchain
+
+**Registering a Tauri command takes two edits**: define it in `commands.rs` **and** add it to the
+`invoke_handler!` list in `lib.rs`.
+
+**Toolchain resolution falls back three levels**: user settings, then bundled `resources/tools`, then the
+user download directory. The third level is required because the bundled directory is read-only when the
+app lives under `Program Files`.
+
+**Bundled tools must match the declared download version.** Resolution prefers the bundled copy, so an old
+version silently shadows the correct one.
+
+**The global shortcut table must not `stopPropagation`**, or overlays cannot close.
+
+**Both halves of `visible: false` matter.** The frontend calls `show()` after the first painted frame and
+Rust has a 1.5 s fallback; the inline bootstrap in `index.html` depends on Tauri injecting a CSP
+hash/nonce at build time (`script-src 'self'`).
+
+### Data
+
+**No serde defaults for project JSON.** The app writes every field, so a missing field means a corrupted
+file and should fail loudly rather than silently defaulting. Hence no `#[serde(default)]` on `Project` /
+`EncryptOptions` / `PackageOptions`; `Settings::load` does fall back to defaults, but logs to stderr.
+
+**Every value is whitelisted.** Project JSON is hand-editable, so all enum values pass through a whitelist
+before reaching a template, with unknown values falling back to defaults (`defaults.rs::pick`).
+
+## Desktop-design trade-offs
+
+The browser engine's defaults are the main source of "this feels like a web page". `desktop.ts` replaces
+them one by one with desktop conventions:
+
+| Browser behaviour | What happens instead |
+| --- | --- |
+| `Ctrl+R` / `F5` / `F7` / `F12` | reload and devtools |
+| `Ctrl+P` / `Ctrl+F` / `Ctrl+U` | print / find / view source |
+| `Ctrl+Shift+I/J/C` | devtools and element inspection |
+| `Ctrl` `+` / `-` / `0` and `Ctrl`+wheel | browser zoom — a fixed-density desktop tool has no concept of zoom, so it is intercepted rather than rebound |
+| dragging content out / dragging files in | `dragstart`, `dragover` and `drop` are blocked |
+| native context menu | replaced by the hand-drawn menu |
+| `Backspace` without focus | navigation is blocked |
+| selecting UI text | `body` is `user-select: none`; inputs, the script editor and the log opt back in |
+
+Measurements lean on Fluent / WinUI 3:
+
+| Item | Value | Rationale |
+| --- | --- | --- |
+| title bar height | 36–38 px | Fluent uses 32 px; the skin switcher needs room |
+| window buttons | 46 px wide, full height, square | Fluent caption buttons; close hovers `#C42B1C` |
+| status bar | 24 px | local tools put status at the bottom, not in the title bar |
+| body size / leading | 12 px / 1.4 | desktop density, not the web's 13–14 px / 1.5 |
+| corner radius | 4 px controls, 3 px small parts | Fluent's 4/8/8 system, stepped down |
+| motion | 83 / 167 / 250 ms | Fluent motion |
+| focus ring | 2 px double stroke | Fluent focus is a double stroke, not a coloured glow |
+| cursor | arrow everywhere | the hand cursor is a web habit |
+
+Overlays always pair a shadow with a 1 px outline, so they do not smear into a light background. Fonts are
+**bundled locally** because the CSP is `default-src 'self'` and Google Fonts cannot be fetched at runtime;
+Chinese falls back to system fonts.

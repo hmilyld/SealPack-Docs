@@ -1,0 +1,22 @@
+---
+interface Props {
+  tone?: 'note' | 'warn' | 'pitfall' | 'verified';
+  label?: string;
+}
+
+const { tone = 'note', label } = Astro.props;
+
+const defaultLabels: Record<string, string> = {
+  note: '说明',
+  warn: '注意',
+  pitfall: '踩过的坑',
+  verified: '实测',
+};
+---
+
+<aside class="callout" data-tone={tone}>
+  <span class="callout__label">{label ?? defaultLabels[tone]}</span>
+  <div class="callout__body">
+    <slot />
+  </div>
+</aside>

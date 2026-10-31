@@ -1,0 +1,61 @@
+---
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import Sidebar from '~/components/Sidebar.astro';
+import Toc from '~/components/Toc.astro';
+import PageNav from '~/components/PageNav.astro';
+import { site } from '~/lib/site';
+import { ui, type Locale } from '~/lib/i18n';
+import { docIndexLabel, readingTime, type Doc } from '~/lib/docs';
+
+interface Props {
+  locale: Locale;
+  entry: Doc;
+  docs: Doc[];
+  headings: { depth: number; slug: string; text: string }[];
+  prev?: Doc;
+  next?: Doc;
+}
+
+const { locale, entry, docs, headings, prev, next } = Astro.props;
+const dict = ui[locale];
+const minutes = readingTime(entry.body, locale);
+---
+
+<BaseLayout
+  locale={locale}
+  title={entry.data.title}
+  description={entry.data.description}
+  crumb={[entry.data.group, entry.data.title]}
+>
+  <div class="layout">
+    <Sidebar locale={locale} docs={docs} currentId={entry.id} />
+
+    <main class="main" id="main">
+      <article class="article">
+        <header class="doc-head">
+          <p class="doc-kicker">
+            {entry.data.group}
+            <span>· {docIndexLabel(entry, docs)}</span>
+          </p>
+          <h1 class="doc-title">{entry.data.title}</h1>
+          <p class="doc-lede">{entry.data.description}</p>
+          <p class="doc-meta">
+            <span>{dict.version}{site.version}</span>
+            <span class="doc-meta__sep">/</span>
+            <span>{dict.minutes(minutes)}</span>
+            <span class="doc-meta__sep">/</span>
+            <span>{entry.data.group}</span>
+          </p>
+        </header>
+
+        <div class="prose">
+          <slot />
+        </div>
+
+        <PageNav locale={locale} prev={prev} next={next} />
+      </article>
+    </main>
+
+    <Toc locale={locale} headings={headings} />
+  </div>
+</BaseLayout>

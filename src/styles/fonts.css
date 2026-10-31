@@ -1,0 +1,21 @@
+/* ============================================================================
+   字体 —— 与 SealPack 应用本体同一套（本地 woff2，不走 CDN）
+   Instrument Sans 与 JetBrains Mono 都是可变字体：同一个文件覆盖整段字重，
+   所以这里只需要两条 @font-face。中文由系统字体兜底。
+   ========================================================================== */
+
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../assets/fonts/instrument-sans-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('../assets/fonts/jetbrains-mono-400.woff2') format('woff2');
+}
