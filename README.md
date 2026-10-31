@@ -114,8 +114,28 @@ pnpm run probe
 
 ## 部署
 
-`dist/` 是纯静态目录，丢给任意静态托管即可。`astro.config.mjs` 里的 `site` 与
-`src/lib/site.ts` 里的 `url` 是同一个域名，改的时候两处一起改（canonical、OG、sitemap 都用它）。
+托管在 **Vercel**，域名 `https://sealpack.hmilyld.com`。`vercel.json` 已经把构建链钉死：
+
+| 项 | 值 |
+| --- | --- |
+| Framework | Astro（自动识别） |
+| Install | `pnpm install --frozen-lockfile` |
+| Build | `pnpm run build` |
+| Output | `dist` |
+| Node | ≥ 22（`package.json` 的 `engines`） |
+
+在 Vercel 里 Import 这个仓库、确认上面几项、Deploy 即可，之后推 `main` 会自动发布。
+`/docs` 与 `/en/docs` 两条入口用 `vercel.json` 的 308 跳转；`astro.config.mjs` 里的同名
+`redirects` 保留着，是为了本地 `astro dev` 与其它静态托管也能用。
+
+`_astro/*` 带内容哈希，设了一年 immutable 缓存；`shots/*` 是截图，一周。改这两条之前先想清楚
+—— 文件名带哈希的才能 immutable。
+
+域名那一侧：Cloudflare 里 `sealpack` 这条记录要指向 Vercel 给的 CNAME（`cname.vercel-dns.com`），
+**首次签证书期间把代理关掉（灰云）**，证书签发后再决定要不要开回橙云（SSL 模式选 Full (strict)）。
+
+`astro.config.mjs` 里的 `site` 与 `src/lib/site.ts` 里的 `url` 是同一个域名，改的时候两处一起改
+（canonical、OG、sitemap 都用它）。
 
 分享图由 `scripts/make-og.py` 生成（Pillow + 系统里的微软雅黑 / Segoe UI），
 输出 `public/og.png` 与 `public/og-en.png`，改了文案重跑一次即可。
