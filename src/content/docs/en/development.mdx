@@ -85,7 +85,7 @@ driver asserting computed styles and DOM state in a real browser (not eyeballing
 
 ```bash
 pnpm run build:preview
-node scripts/ui-probe.mjs "file:///D:/Codespace/SealPack/dist-preview" docs/shots
+node scripts/ui-probe.mjs "file:///D:/Codespace/SealPack/SealPack/dist-preview" docs/shots
 ```
 
 The probe needs a Chromium-family browser: it checks `CHROME_PATH`, then common install locations.
@@ -199,7 +199,7 @@ published installer, so run the checklist locally before releasing.
 ```bash
 pnpm run build:preview
 pnpm run check:render-parity                      # if you touched a template generator
-node scripts/ui-probe.mjs "file:///D:/Codespace/SealPack/dist-preview" docs/shots
+node scripts/ui-probe.mjs "file:///D:/Codespace/SealPack/SealPack/dist-preview" docs/shots
 cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 
