@@ -25,7 +25,7 @@ type Copy = {
     paragraphs: Seg[][];
     points: { n: string; strong: string; text: Seg[] }[];
   };
-  skins: { num: string; title: string; note: string; caption: string };
+  feature: { num: string; title: string; note: string; caption: string };
   docs: { num: string; title: string };
   groupNotes: Record<string, string>;
   cta: { label: string; line: Seg[]; button: string };
@@ -42,10 +42,10 @@ const copy: Record<Locale, Copy> = {
     spec: [
       { label: '平台', value: 'Windows 10 1809+ / 11' },
       { label: '后端', value: 'Rust · Tauri 2' },
-      { label: '前端', value: 'TypeScript · Tailwind 4' },
+      { label: '前端', value: 'React 18 · Fluent UI v9' },
       { label: '版本', value: site.version },
       { label: '许可', value: 'MIT' },
-      { label: '界面', value: '简体中文 · 两套皮肤' },
+      { label: '界面', value: '简体中文 · Fluent 主题' },
     ],
     stages: [
       {
@@ -113,11 +113,11 @@ const copy: Record<Locale, Copy> = {
         },
       ],
     },
-    skins: {
+    feature: {
       num: '02',
-      title: '两套皮肤，一份 DOM',
-      note: '「瑞士技术网格」是暖白纸底与朱红，「终端」是近黑底与荧光青。差异 100% 由 CSS 表达，标题栏上点一下就切；明暗另有「跟随系统 / 深色 / 浅色」三态，每套皮肤各记自己的明暗。',
-      caption: '终端 · 深色 —— 与「项目简介」里那张截图是同一份 DOM，只换了 CSS',
+      title: '完整包与升级包',
+      note: '同一个工程可以出完整安装包、升级包或两者。升级包按上一次安装的基线清单自动算差异：新增 / 修改的文件进包，删除项写进 [InstallDelete]，未变化文件不重复打包；目标机器没有旧版本时直接中止，版本不一致会先确认。',
+      caption: '升级差异 —— 基线、新增 / 修改 / 删除 / 未变，文件集只读',
     },
     docs: { num: '03', title: '文档' },
     groupNotes: {
@@ -142,10 +142,10 @@ const copy: Record<Locale, Copy> = {
     spec: [
       { label: 'Platform', value: 'Windows 10 1809+ / 11' },
       { label: 'Backend', value: 'Rust · Tauri 2' },
-      { label: 'Frontend', value: 'TypeScript · Tailwind 4' },
+      { label: 'Frontend', value: 'React 18 · Fluent UI v9' },
       { label: 'Version', value: site.version },
       { label: 'License', value: 'MIT' },
-      { label: 'UI', value: 'Chinese · two skins' },
+      { label: 'UI', value: 'Chinese · Fluent theme' },
     ],
     stages: [
       {
@@ -213,11 +213,11 @@ const copy: Record<Locale, Copy> = {
         },
       ],
     },
-    skins: {
+    feature: {
       num: '02',
-      title: 'Two skins, one DOM',
-      note: '\u201CSwiss grid\u201D is warm paper with vermilion; \u201CTerminal\u201D is near-black with cyan. The difference is 100% CSS and switches from the title bar. Light and dark are a separate axis: auto, dark, light — each skin remembers its own.',
-      caption: 'Terminal · dark — the same DOM as the screenshot in the introduction, only the CSS differs',
+      title: 'Full and upgrade packages',
+      note: 'One project can produce a full installer, an upgrade package, or both. The upgrade package diffs against the last installed baseline: new and modified files are packed, removals go to [InstallDelete], unchanged files are skipped, and a machine without the old version is stopped before anything is written.',
+      caption: 'Upgrade diff — baseline, added / modified / deleted / unchanged, read-only',
     },
     docs: { num: '03', title: 'Documentation' },
     groupNotes: {
@@ -346,15 +346,15 @@ const groups = GROUP_ORDER[locale]
 
       <section class="section">
         <div class="section__head">
-          <span class="section__num">{c.skins.num}</span>
-          <h2 class="section__title">{c.skins.title}</h2>
+          <span class="section__num">{c.feature.num}</span>
+          <h2 class="section__title">{c.feature.title}</h2>
         </div>
-        <p class="section__note">{c.skins.note}</p>
+        <p class="section__note">{c.feature.note}</p>
         <figure class="fig">
-          <img src="/shots/06-terminal-dark.png" alt={c.skins.title} loading="lazy" />
+          <img src="/shots/32-upgrade-v3.png" alt={c.feature.title} loading="lazy" />
           <figcaption>
             <span class="fig__no"></span>
-            <span>{c.skins.caption}</span>
+            <span>{c.feature.caption}</span>
           </figcaption>
         </figure>
       </section>
