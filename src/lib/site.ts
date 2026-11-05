@@ -9,7 +9,7 @@ export const site = {
     en: 'Merge, encrypt and package — one workbench',
   },
   url: 'https://sealpack.hmilyld.com',
-  version: '0.2.0',
+  version: '0.3.0',
   license: 'MIT',
   repo: 'https://github.com/hmilyld/SealPack',
   releases: 'https://github.com/hmilyld/SealPack/releases',

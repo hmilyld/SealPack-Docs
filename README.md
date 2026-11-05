@@ -84,6 +84,9 @@ order: 3           # 组内顺序
 `docs/shots/` 的 CDP 探针截图。正文用 `<Figure>` 引用，编号按页自动递增（`图 01`），
 点图在新标签页看原图。
 
+截图文件名带版本后缀（如 `01-setup-v3.png`）。`shots/*` 在 Vercel 上缓存一周，替换截图时
+**同时改文件名与引用**（递增后缀），否则浏览器会继续显示旧图。
+
 ## 设计约定
 
 - **结构用线画，不用框画**：全站没有圆角卡片、没有投影、没有渐变。层次由字号、字重、留白和 1px 的线承担。
@@ -129,8 +132,8 @@ pnpm run probe
 `/docs` 与 `/en/docs` 两条入口用 `vercel.json` 的 308 跳转；`astro.config.mjs` 里的同名
 `redirects` 保留着，是为了本地 `astro dev` 与其它静态托管也能用。
 
-`_astro/*` 带内容哈希，设了一年 immutable 缓存；`shots/*` 是截图，一周。改这两条之前先想清楚
-—— 文件名带哈希的才能 immutable。
+`_astro/*` 带内容哈希，设了一年 immutable 缓存；`shots/*` 是截图，一周。截图文件名带版本后缀，
+替换时改后缀就能绕过缓存；`_astro/*` 文件名本身带哈希，所以可以 immutable。
 
 域名那一侧：Cloudflare 里 `sealpack` 这条记录要指向 Vercel 给的 CNAME（`cname.vercel-dns.com`），
 **首次签证书期间把代理关掉（灰云）**，证书签发后再决定要不要开回橙云（SSL 模式选 Full (strict)）。

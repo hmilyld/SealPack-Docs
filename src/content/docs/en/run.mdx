@@ -20,7 +20,7 @@ Failure stops the run. A failing stage keeps its full log and halts; the later s
 because they consume the earlier ones' output and half-finished input only produces harder errors.
 
 
-<Figure src="/shots/05-run.png" alt="Run plan: merge finished, with status and artifact on the right" caption="Run plan — one row per stage with status, summary and artifact" />
+<Figure src="/shots/05-run-v3.png" alt="Run plan: merge finished, with status and artifact on the right" caption="Run plan — one row per stage with status, summary and artifact" />
 
 ## Artifacts are discovered, not guessed
 
@@ -61,7 +61,7 @@ artifact type, status and artifact paths. It lives in `buildHistory` in the proj
 passwords; artifacts are deduplicated by Windows path, so a main executable reported by both merge and
 obfuscation appears once.
 
-<Figure src="/shots/35-history.png" alt="Build history: status, artifact type and artifact files" caption="Build history — tagged by artifact type, artifacts open in Explorer" />
+<Figure src="/shots/35-history-v3.png" alt="Build history: status, artifact type and artifact files" caption="Build history — tagged by artifact type, artifacts open in Explorer" />
 
 ## No project switching while running
 
