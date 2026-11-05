@@ -164,8 +164,8 @@ git tag -a vX.Y.Z -m "..." && git push origin vX.Y.Z
 ```
 
 推 `v*` 标签会自动构建并创建 GitHub Release，安装包作为附件挂上去。
-Release 正文目前由 `--generate-notes` 生成；`CHANGELOG.md` 是给下一次发版准备的更新内容来源，
-要让它直接进 Release 正文，需要再改 `release.yml`。
+Release 正文来自 `CHANGELOG.md`：优先取与标签同名的版本段（如 `## [0.3.0] - 2026-11-05`），
+找不到再退回 `## [Unreleased]`；两段都没有时才用 `--generate-notes`。
 
 <Callout tone="warn">
 

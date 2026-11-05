@@ -176,8 +176,9 @@ git tag -a vX.Y.Z -m "..." && git push origin vX.Y.Z
 ```
 
 Pushing a `v*` tag builds and creates the GitHub Release with the installer attached.
-The release body currently comes from `--generate-notes`; `CHANGELOG.md` is the source for the next
-release's notes, and wiring it into the body requires another change to `release.yml`.
+The release body comes from `CHANGELOG.md`: the section matching the tag (for example
+`## [0.3.0] - 2026-11-05`) is preferred, `## [Unreleased]` is the fallback, and `--generate-notes` is used
+only when neither has content.
 
 <Callout tone="warn">
 
