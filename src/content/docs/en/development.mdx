@@ -1,6 +1,6 @@
 ---
-title: Development & testing
-description: Environment, commands, the preview's debug parameters, the CDP probe, generator parity, and the checks in the release flow.
+title: Development and testing
+description: Environment, commands, browser-preview switches, the CDP probe, generator parity, and the checks in the release flow.
 group: Internals
 order: 3
 ---
@@ -9,24 +9,24 @@ order: 3
 
 | Need | Version | Notes |
 | --- | --- | --- |
-| Windows | 10 1809+ / 11 | The app is Windows-only; the Rust code also `cargo check`s elsewhere |
+| Windows | 10 1809+ / 11 | The app itself is Windows-only; the Rust code still `cargo check`s elsewhere |
 | Node.js | ≥ 22.6 | the parity script uses Node's type stripping |
-| pnpm | 12.x | `package.json` pins `packageManager` |
+| pnpm | 12.x | the package manager, pinned by `packageManager` in `package.json` |
 | Rust | ≥ 1.77 | see `rust-version` in `Cargo.toml` |
 | .NET Framework | 4.8+ | only needed to run ILMerge / ConfuserEx, not to develop the UI |
 
-This project uses **pnpm**; the repository only contains `pnpm-lock.yaml`. Do not generate a lockfile with
-npm or yarn — the two would disagree with each other, and `tauri.conf.json`'s `beforeDevCommand` /
-`beforeBuildCommand` assume pnpm.
+This project uses **pnpm** and the repository contains only `pnpm-lock.yaml`. Do not generate a lock file
+with npm or yarn — two package managers' lock files drift apart, and `beforeDevCommand` /
+`beforeBuildCommand` in `tauri.conf.json` assume pnpm anyway.
 
 ## Commands
 
 ```bash
 pnpm install
 pnpm run app:dev              # Tauri dev mode (Vite dev server pinned to port 1420)
-pnpm run app:build            # produces the NSIS installer
-pnpm run build:preview        # typecheck + build the browser preview → dist-preview/
-pnpm run check:render-parity  # byte-for-byte comparison of the two generators
+pnpm run app:build            # produce the NSIS installer
+pnpm run build:preview        # type check + browser preview → dist-preview/
+pnpm run check:render-parity  # compare both template generators character by character
 ```
 
 Rust side:
@@ -34,121 +34,130 @@ Rust side:
 ```bash
 cd src-tauri
 cargo test                                  # unit tests
-cargo test -- --ignored                     # network tests + regenerate the fixture
+cargo test -- --ignored                     # network tests + fixture regeneration
 cargo fmt                                   # run before committing (CI checks it)
 cargo clippy --all-targets -- -D warnings
 ```
 
-- **There is no frontend lint or formatter.** Type checking is `tsc --noEmit`, run inside `build` /
+- **The frontend has no lint or formatter.** Type checking is `tsc --noEmit`, run only by `build` /
   `build:preview`. `tsconfig.json` enables `noUnusedLocals` / `noUnusedParameters`, so an unused variable
   fails the build.
 - **Rust has format and lint gates**: `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`
   are clean and CI enforces them.
-- One test at a time: `cargo test <filter>`, for example `cargo test defaults::`.
+- One Rust test: `cargo test <filter>`, for example `cargo test defaults::`.
 
-## Debugging the UI without Tauri
+## Debugging the UI only (without Tauri)
 
-The browser preview runs the interface against a fake Tauri IPC layer (`preview/mock.ts`) with hard-coded
-sample projects.
+The browser preview runs the UI against a fake Tauri IPC layer (`preview/mock.ts`) with a hard-coded sample
+project.
 
 ```bash
 pnpm run dev          # then open http://localhost:1420/preview.html
 # or: pnpm run build:preview and open dist-preview/preview.html directly
 ```
 
-The preview page accepts these query parameters for isolating one part of the UI:
+The preview page accepts these query parameters:
 
 | Parameter | Effect |
 | --- | --- |
-| `?skin=swiss` / `?skin=terminal` | pick the design |
-| `?theme=light` / `?theme=dark` | pick the theme (and leave auto mode) |
+| `?theme=light` / `?theme=dark` / `?theme=system` | pick the theme; `system` follows `prefers-color-scheme` |
 | `?material=on` | make the mock report materials as available, exercising the translucent chrome branch |
-| `?pick=none` | make every file picker return "cancelled", for the cancel path |
-| `?dialog=settings` | open the settings panel |
-| `?dotnet=missing` | simulate a missing .NET Framework, for the environment banner |
+| `?pick=none` | make every file picker return "cancelled", to test that branch |
+| `?dialog=settings` | open the settings panel automatically |
+| `?dotnet=missing` | simulate a missing .NET Framework to test the environment banner |
 
-Overrides are written into `localStorage` first and then read by `src/skin.ts`, so preview parameters and
-the in-app switcher never fight each other.
+Overrides are written into `localStorage["sealpack:theme"]` first and then read by `ThemeProvider`, so
+preview parameters and the in-app theme switcher never fight each other.
 
 <Callout tone="pitfall">
 
-`preview/entry.ts` must pull `src/main.ts` in with a **dynamic import**: a static import is hoisted and the
-mock never installs. The problem only shows up in the built output (in dev, native ESM evaluates in
-declaration order and hides it).
+`preview/entry.ts` must pull `src/main.tsx` in with a **dynamic import**: a static import is hoisted and the
+mock never installs. This only shows up in the build output (under dev, native ESM evaluates in declaration
+order and hides the problem).
 
 </Callout>
 
 ## The UI regression probe
 
-There are no frontend unit tests; the safety net is `scripts/ui-probe.mjs` — a Chrome DevTools Protocol
-driver asserting computed styles and DOM state in a real browser (not eyeballing screenshots).
+There are no frontend unit tests. The safety net is `scripts/ui-probe.mjs` — it drives a real browser over
+the Chrome DevTools Protocol and asserts computed styles and DOM state rather than eyeballing screenshots.
 
 ```bash
 pnpm run build:preview
 node scripts/ui-probe.mjs "file:///D:/Codespace/SealPack/SealPack/dist-preview" docs/shots
 ```
 
-The probe needs a Chromium-family browser: it checks `CHROME_PATH`, then common install locations.
-**Edge works too** — same engine, same CDP, same command-line switches; screenshots were byte-identical.
+It needs a Chromium-family browser: `CHROME_PATH` first, then the usual install locations.
+**Edge works too** — same engine, same CDP, same command-line switches; screenshots came out byte-identical.
 
-Six groups of assertions, then a `FAIL` list and an exit code:
+It runs ten groups (A–J), prints the `FAIL` list and reflects the result in the exit code:
 
 | Group | What it watches |
 | --- | --- |
-| A. Design switching | auto follows the system live; manual is not overridden by the system; each design remembers its own theme; both persist across reload |
-| B. Native feel | title bar height, caption buttons, status bar, 12 px body, `user-select: none`, motion tokens, focus ring, both material paths |
-| C. Interaction | context-menu keyboard semantics, tree roving tabindex, dialog `Esc` resolving the caller's promise, primary action on the left |
-| D. Wizard | five-step structure, jumping steps, the three hit areas staying independent, search narrowing, footer refresh after folding, template rebuild, run-all |
-| E. Option surface | grouped rendering, default labels, conditional parameters, preset wiring, parameters actually landing in the template, portable dropping shortcuts |
-| F. Regression fixes | step-bar tab semantics, the rescan button being wired, toasts being a live region, `writes` being consumed, password inputs |
+| A. Theme | light / dark written to the root element; emulating `prefers-color-scheme` switches a `system` theme live |
+| B. Native feel | 40 px title bar, 28 px status bar, 14 px body, `user-select: none`, default arrow cursor, five steps, 4 pt spacing / 30 px rows / 8 px card radius |
+| C. Interaction | tri-state selection, whole-row click toggling, project context menu, `Esc` closing it, arrow keys on the step bar |
+| D. Wizard and tree | the executable hidden on the merge step, merge count, locked executable and auto-excluded items on the package step, select-all / exclude-all covering collapsed folders, whole-row clicking |
+| E. Options | presets clickable, the encrypt template rebuilt from a preset, the package preset switching to portable |
+| F. Run and preflight | the preflight panel appears, warnings ask for confirmation, a single stage ends with status and artifact |
+| G. Persistence | the theme survives a reload |
+| H. Upgrade package | artifact switch, baseline and diff, `both` producing two installers |
+| I. Settings | focus does not start on the first tab, the footer stays inside the dialog, the content area is height-limited |
+| J. Project management | rename prefills the product name, the delete dialog explains it only removes config, reload project works |
 
-### Pitfalls the probe has hit
+### Probe pitfalls
 
-- **Do not hard-code milliseconds as `167ms`** — Lightning CSS rewrites it to `.167s`; compare through `isMs()`.
-- **`color-mix()` computes to `color(srgb r g b / a)`**, not `rgba()`; parse alpha rather than matching a prefix.
-- **Geometry like tree indentation must be measured with `getBoundingClientRect()`**, never eyeballed from a
-  scaled screenshot.
-- **`press()` returns an expression string to evaluate**, not a promise.
-- **Elements inside `display: none` panels cannot take focus** — switch to the step first.
-- **Conditional display needs `hidden` plus an explicit `display: none`** — `.opt` is `display: flex`, so
-  `[hidden]` alone does not win.
+- **Do not hard-code milliseconds as `167ms`** — the build minifier rewrites it to `.167s`; convert with
+  `isMs()` before comparing.
+- **`color-mix()` computes to `color(srgb r g b / a)`, not `rgba()`**; parse alpha to detect translucency.
+- **Geometry such as tree indentation must be measured with `getBoundingClientRect()`**, not eyeballed from
+  a scaled screenshot.
+- **`press()` returns an expression string to evaluate, not a Promise.**
+- **Elements inside `display: none` cannot take focus** — switch to the step before testing its tree.
+- **Fluent Dialog / Menu / Toast all render through portals** — query the whole document.
+- **Fluent does not reliably forward `data-testid`** — prefer `role` / `aria-label` / `title` / `data-step`.
 
 ## Generator parity
 
 "Options → template" has two implementations: `defaults.rs` in Rust and `preview/render.ts` in the browser.
 
 ```bash
-cd src-tauri && cargo test --lib dump_render_fixtures -- --ignored   # dump the fixture from Rust
+cd src-tauri && cargo test --lib dump_render_fixtures -- --ignored   # dump the fixture with Rust
 pnpm run check:render-parity                                         # compare against the TS side
 ```
 
 The fixture is committed (22 cases covering defaults, every parameterised protection, conditional
-parameters, strong-name signing, XML escaping, split volumes, portable mode, the three encryption states,
-signing, LZMA parameters, unknown-value fallback and the official boundary values), so the second command
-runs without Rust. **Run it after touching either generator.**
+parameters, strong-name signing, XML escaping, multi-volume, portable, the three encryption modes, signing,
+LZMA parameters, unknown-value fallback and the official limits), so the second command runs without Rust.
+**Run it after touching either generator.**
+
+The upgrade expansion lives in `packaging.rs` and does not go through `defaults.rs`, so it is not part of the
+fixture; Rust unit tests cover it.
 
 ## Rust unit tests
 
-They concentrate where things break silently and are hardest to spot in the UI:
+They concentrate on the places that break quietly and are hardest to spot in the UI:
 
-- `defaults::tests` — the options-to-template mapping: arguments in the right place (`snKey` on `<module>`),
-  values normalised, parameters only present in legal combinations, unknown values falling back, and the
-  executable appearing exactly once in `[Files]`.
-- `model::tests` — `relative_to` semantics (case-insensitive, separator normalisation, multi-byte paths not
-  panicking), plus relative-isation and de-duplication in `auto_ignores` / `ignore_list`.
-- `pipeline::tests` — log masking must cover every known password parameter; artifact detection only
-  accepts files created or rewritten by this run.
-- `store::tests` — `\\?\` prefix normalisation, project-id path traversal defence, temp cleanup only
-  touching stale directories.
-- `hash::tests` — digests pinned to public test vectors (`"abc"` and the empty input), plus a check that no
-  bytes are lost across a 64 KB block boundary.
-- `download::tests` — extraction against realistically shaped archives, plus declaration self-consistency.
+- `defaults::tests` — the "options → template" mapping: parameters in the right place (`snKey` on
+  `<module>`), values normalised, parameters only in valid combinations, unknown values falling back, and
+  `${files}` and friends still present in the template.
+- `packaging::tests` — full / upgrade file sections, `[InstallDelete]`, upgrade-only `[Setup]` and `[Code]`.
+- `manifest::tests` — reading and writing the baseline manifest and the SHA-256 diff (new / modified /
+  deleted / unchanged).
+- `model::tests` — `relative_to` semantics (case-insensitive, separator normalisation, no panic on
+  multi-byte paths) and the relativisation / deduplication of `auto_ignores` / `ignore_list`.
+- `pipeline::tests` — log masking must cover every known password parameter; artifact detection only accepts
+  files created or rewritten by this run.
+- `store::tests` — `\\?\` prefix normalisation, project-id path-traversal protection, scratch cleanup only
+  touching stale directories, old-project migration.
+- `hash::tests` — digest algorithms pinned with public vectors (`"abc"` and the empty input), plus no byte
+  loss across a 64 KB block boundary.
+- `download::tests` — unzip logic against realistically shaped archives, plus declaration self-consistency.
 - `tools::tests` — the three-level fallback and local Inno Setup detection.
 
-A few tests are **ignored by default** (`cargo test -- --ignored`): three of them really download from
-NuGet, GitHub and the official site and verify byte counts and checksums; one regenerates the fixture. They
-are **not** in CI — they depend on the network and third-party availability, and blocking a PR on that only
-creates noise.
+A few tests are **ignored by default** (`cargo test -- --ignored`): real downloads from NuGet / GitHub /
+the official source with byte-count and checksum verification, plus fixture generation. They are **not** in
+CI — they depend on the network and third-party availability, and letting them block a PR only creates noise.
 
 ## Build and release
 
@@ -159,42 +168,45 @@ pnpm run app:build    # NSIS installer → src-tauri/target/release/bundle/nsis/
 Release flow:
 
 ```bash
-# 1. bump the version in all three places (release.yml fails if they disagree):
+# 1. bump all three version strings (release.yml checks them and fails on a mismatch):
 #    package.json / src-tauri/tauri.conf.json / src-tauri/Cargo.toml
-# 2. commit, push, then tag:
-git tag -a v0.2.0 -m "..." && git push origin v0.2.0
+# 2. rename [Unreleased] in CHANGELOG.md to [version] - YYYY-MM-DD
+# 3. commit, push, then tag:
+git tag -a vX.Y.Z -m "..." && git push origin vX.Y.Z
 ```
 
-Pushing a `v*` tag builds the installer and creates a GitHub Release with it attached.
+Pushing a `v*` tag builds and creates the GitHub Release with the installer attached.
+The release body currently comes from `--generate-notes`; `CHANGELOG.md` is the source for the next
+release's notes, and wiring it into the body requires another change to `release.yml`.
 
 <Callout tone="warn">
 
-**The installer filename and the version shown in the UI come from `tauri.conf.json`; the tag only
-triggers the build.** Forget to bump and the release says v0.2.0 while installing 0.1.0 — which is why
-`release.yml` has a tag-versus-version check.
+**The installer filename and the version shown in the UI come from `version` in `tauri.conf.json`; the tag
+is only a trigger.** Forget to bump it and the release is labelled with the new version while installing the
+old one — which is why `release.yml` checks that the tag and the version agree.
 
 </Callout>
 
-`tauri.conf.json` sets `targets: ["nsis"]` and `installMode: "currentUser"`. `bundle.resources` includes
+`tauri.conf.json` sets `targets: ["nsis"]` and `installMode: "currentUser"`. `bundle.resources` contains
 `resources/tools` (the bundled ILMerge and ConfuserEx) and `resources/isl` (the Chinese language pack) —
-templates themselves are not shipped, they are generated by Rust.
+the templates themselves are not shipped; Rust generates them.
 
 ## CI
 
-| Job | Runner | Content |
+| Job | Runner | Contents |
 | --- | --- | --- |
 | `frontend` | ubuntu-latest | `pnpm install --frozen-lockfile` → `build:preview` (includes `tsc --noEmit`) → `check:render-parity` |
 | `rust` | windows-latest | `cargo fmt --check` → `cargo clippy --all-targets -- -D warnings` → `cargo test` |
-| `ui-probe` | windows-latest | build the preview → run the CDP probe; screenshots kept 7 days as artifacts |
+| `ui-probe` | windows-latest | build the preview → run the CDP probe; screenshots kept as an artifact for 7 days |
 
-Two Windows jobs rather than Linux: Windows is the only target platform. On Ubuntu you would install
-`webkit2gtk` and friends, and still not be testing the real environment.
+Two Windows jobs rather than Linux: Windows is the only target platform. On ubuntu you would have to install
+`webkit2gtk` and friends, and you would not be testing the real environment.
 
-**Pushing to `main` does not trigger CI** — day-to-day commits rely on the local checklist, and the gates
-run at two points only: merging (PRs) and releasing (`v*` tags). A failed gate does not retract an already
-published installer, so run the checklist locally before releasing.
+**Pushing `main` does not trigger CI** — day-to-day commits rely on the local checklist, and the gates run
+only at merge (PR) and release (`v*` tag). A failed gate does not retract an already published installer, so
+run the checklist locally before releasing.
 
-## The minimum checklist before handing work back
+## Minimum checklist before delivery
 
 ```bash
 pnpm run build:preview
@@ -203,10 +215,10 @@ node scripts/ui-probe.mjs "file:///D:/Codespace/SealPack/SealPack/dist-preview" 
 cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 
-All green before committing. If the UI changed, glance at the corresponding screenshot in `docs/shots/` to
-confirm nothing shifted unexpectedly.
+All green before committing. If you changed the UI, glance at the matching screenshots under `docs/shots/`
+to confirm nothing moved unexpectedly.
 
-**Two kinds of change need extra verification:**
+**Two more cases need extra verification:**
 
-- **Changing a `[Setup]` directive or the language-pack reference** → compile once with a real ISCC.
-- **Changing the bundled tool directory** → run `cargo test -- --ignored` to verify versions and checksums.
+- **Changed a `[Setup]` directive or the language-pack reference** → compile once with a real ISCC.
+- **Changed the bundled tool directory** → verify versions and checksums with `cargo test -- --ignored`.

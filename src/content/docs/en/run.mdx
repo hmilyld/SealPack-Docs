@@ -20,12 +20,13 @@ Failure stops the run. A failing stage keeps its full log and halts; the later s
 because they consume the earlier ones' output and half-finished input only produces harder errors.
 
 
-<Figure src="/shots/24-run-all-done.png" alt="Three completed stage rows with their artifacts" caption="All three stages done — status, summary and artifact on each row" />
+<Figure src="/shots/05-run.png" alt="Run plan: merge finished, with status and artifact on the right" caption="Run plan — one row per stage with status, summary and artifact" />
 
 ## Artifacts are discovered, not guessed
 
 The installer's filename comes from Inno's `OutputBaseFilename`, while merge and obfuscation overwrite the
-executable in place — three completely different shapes of output. So SealPack does not guess a filename:
+executable in place — three completely different shapes of output. With artifact "both" one run produces
+two exes, so "the artifact" may be several files. SealPack does not guess a filename:
 
 1. snapshot the output directory before the stage (name, mtime, size);
 2. snapshot it again afterwards;
@@ -52,6 +53,15 @@ External tool output is streamed line by line and shown with its source labelled
 parameter added leaks silently. The table is asserted key by key in a unit test.
 
 </Callout>
+
+## Build history
+
+The **build history** card at the bottom of the main-program step records the last 20 runs: time, scope,
+artifact type, status and artifact paths. It lives in `buildHistory` in the project JSON and contains no
+passwords; artifacts are deduplicated by Windows path, so a main executable reported by both merge and
+obfuscation appears once.
+
+<Figure src="/shots/35-history.png" alt="Build history: status, artifact type and artifact files" caption="Build history — tagged by artifact type, artifacts open in Explorer" />
 
 ## No project switching while running
 

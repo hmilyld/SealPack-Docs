@@ -18,7 +18,7 @@ order: 2
 
 | 需要 | 版本 | 缺失时的表现 |
 | --- | --- | --- |
-| Windows | 10 1809+ / 11 | 装不上。窗口材质（Mica Alt）只在 Windows 11 可用 |
+| Windows | 10 1809+ / 11 | 装不上。窗口材质（Mica Alt）只在 Windows 11 可用，Windows 10 回退为实色 |
 | .NET Framework | 4.8+ | 界面顶部出现横幅，「合并」与「加密」两步不可执行 |
 | WebView2 运行时 | — | Windows 11 自带；Windows 10 由安装包按需安装 |
 
@@ -31,9 +31,6 @@ ILMerge 与 ConfuserEx 都是 .NET Framework 程序。SealPack 自己不需要�
 但它调用的前两个工具需要。这就是为什么环境自检的结论是「影响哪两步」而不是「不能运行」。
 
 </Callout>
-
-
-<Figure src="/shots/16-banner-dotnet-swiss.png" alt="缺少 .NET Framework 时窗口顶部的告警横幅" caption="环境横幅 —— 说明缺什么、影响哪两步，而不是等到执行时才报错" />
 
 ## 三个外部工具
 
@@ -49,8 +46,6 @@ SealPack 不自带 Inno Setup，另外两个工具在安装包里有一份内置
 首次运行时若工具链缺失，打开**设置**（<Kbd>Ctrl</Kbd> + <Kbd>,</Kbd>）点「下载」即可：
 
 <Figure src="/shots/07-settings.png" alt="设置面板：三个工具的路径、下载按钮与运行环境自检" caption="设置面板 · 工具路径、下载来源与本机探测" />
-
-<Figure src="/shots/31-settings-download.png" alt="工具下载中的进度与来源信息" caption="下载中的状态 —— 来源、进度与校验值都摆在明面上" />
 
 
 - **ILMerge** 来自 NuGet 官方源，包是 `.nupkg`（本质是 zip），真正的文件在 `tools/net452/` 下；

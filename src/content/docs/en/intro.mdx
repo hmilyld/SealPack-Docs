@@ -14,7 +14,9 @@ Inno Setup. SealPack handles **project management, parameter wiring, template re
 relay**, which is to say: it turns "read three manuals and hand-write two config files" into
 "flip a few switches".
 
-<Figure src="/shots/02-merge.png" alt="SealPack main window with the wizard on the merge step" caption="The five-step wizard · ② Merge (Swiss grid skin)" />
+The UI is React 18 + Fluent UI React v9 + Griffel, with one Fluent theme that follows Windows.
+
+<Figure src="/shots/02-merge.png" alt="SealPack main window with the wizard on the merge step" caption="The five-step wizard · ② Merge" />
 
 ## The three stages
 
@@ -22,7 +24,7 @@ relay**, which is to say: it turns "read three manuals and hand-write two config
 | --- | --- | --- | --- |
 | ① Merge | [ILMerge](https://github.com/dotnet/ILMerge) | Folds assemblies into the main executable | the rewritten `.exe` |
 | ② Obfuscate | [ConfuserEx](https://github.com/mkaring/ConfuserEx) | Renaming, encryption and anti-tamper protection | the rewritten `.exe` |
-| ③ Package | [Inno Setup](https://jrsoftware.org/isinfo.php) | Builds the installer, with install password, full-package encryption and signing | `Setup.exe` plus a checksum list |
+| ③ Package | [Inno Setup](https://jrsoftware.org/isinfo.php) | Builds a full installer or an upgrade package, with install password, full-package encryption and signing | `Setup.exe` plus a checksum list |
 
 Any stage can be skipped: no assemblies checked means no merge, no protections enabled means no
 obfuscation, and packaging on its own is a valid run. When a stage fails the whole run stops and keeps

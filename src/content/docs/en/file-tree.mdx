@@ -1,80 +1,53 @@
 ---
-title: File tree & selection
-description: One row is split into three independent hit areas; search, type filters and "selected only" cover three different mental models.
+title: File tree and selection
+description: Click a row to toggle selection; the arrow only expands. Select all / exclude all cover collapsed folders while locked items stay unchanged.
 group: Getting started
 order: 2
 ---
 
-## One row, three hit areas
+## Click semantics
 
-"Clicking the wrong thing" is the classic file-tree complaint: you want to expand a folder and end up
-checking the whole subtree, or you want to check a file and collapse everything instead. SealPack splits
-the hit area so each part does exactly one thing:
-
-| Area | What a click does |
+| Area | Click behaviour |
 | --- | --- |
-| Chevron | Expands / collapses only. **Never changes a checkbox** |
-| Checkbox | Checks / unchecks only (a folder covers its children). **Never collapses** |
-| Name | Moves focus only. **Never changes a checkbox**; double-click is "activate" |
+| Whole row (name / icon / size / status) | Toggle selection; locked rows only take focus |
+| Expand arrow | Expand / collapse only, **never changes selection** |
+| Checkbox | Toggle selection (a folder covers its subtree), **never collapses** |
 
-The three areas do not overlap and do not delegate to each other — clicking the chevron never touches the
-selection, clicking the name never folds a directory.
+Clicking a folder row toggles its whole subtree using the tri-state aggregate. Use the arrow to expand it,
+so "I meant to expand but selected everything" no longer happens.
 
 <Callout tone="note" label="Keyboard">
 
-The tree uses roving tabindex: one focus position for the whole tree. <Kbd>↑</Kbd> <Kbd>↓</Kbd> move,
-<Kbd>→</Kbd> <Kbd>←</Kbd> expand / collapse or step in / out, <Kbd>Space</Kbd> or <Kbd>Enter</Kbd> toggle.
-Tab only moves between the tree and the selected list, instead of crawling through dozens of nodes.
+The tree uses a roving tabindex: one focus position for the whole tree. <Kbd>↑</Kbd> <Kbd>↓</Kbd> move,
+<Kbd>→</Kbd> <Kbd>←</Kbd> expand / collapse or enter / leave a folder, and <Kbd>Space</Kbd> or
+<Kbd>Enter</Kbd> toggles selection. <Kbd>Ctrl</Kbd> + <Kbd>A</Kbd> selects all visible files.
 
 </Callout>
 
 ## Three ways to find a file
 
-Each maps to a different mental model, and all three are kept:
+1. **You know roughly where it is** → expand folders. The tree is unfiltered by default.
+2. **You know the type** → use the extension chips, for example only `.dll`.
+3. **You know the name** → the search box. Matches are highlighted, ancestors expand, and manual collapse
+   state is restored when the search is cleared.
 
-1. **"I know roughly where it is"** → just expand directories. The tree is **unfiltered by default** and
-   shows the full structure.
-2. **"I know the type"** → click a type chip, for example `.dll` only.
-3. **"I know the name"** → the search box. Matches are highlighted, ancestors expand automatically, and
-   the directories you folded by hand are **remembered and restored** when the search ends.
+On the Package step, **Select all / Exclude all** walk the entire tree, including collapsed folders and
+files hidden by filters. Auto-excluded items, rule matches and the main executable stay unchanged. This
+is why "Exclude all" usually leaves a count of 1: the main executable is always packed.
 
-After selecting, use "selected only" to review, or "check current results" to select everything the filter
-currently shows.
+<Figure src="/shots/04-package.png" alt="Package step: file tree, tri-state selection and summary" caption="File tree — click a row to toggle, use the arrow to expand" />
 
-<Figure src="/shots/09-tree-keyboard.png" alt="File tree with a type filter, search highlighting and the selected list" caption="File tree — three hit areas, type chips and search" />
+## View state is not selection state
 
-<Figure src="/shots/20-tree-hit-areas.png" alt="The three hit areas of one tree row: chevron, checkbox and name" caption="Three hit areas per row — the chevron never checks, the name never folds" />
+- **Selection changed** writes back to the project and triggers the debounced save.
+- **View changed** (collapse, search, extension filter) only changes what is visible and is not saved.
 
+The footer's "showing N" must follow the view. Directory scanning and ignore refresh each have their own
+monotonic epoch; a stale response after switching projects is discarded. Keep the two counters separate.
 
-<Figure src="/shots/21-tree-foot-refresh.png" alt="The footer counter after folding a directory" caption="Folding changes what is visible, so the footer refreshes — the selection does not move" />
+<Callout tone="pitfall" label="Files deleted outside SealPack">
 
-## The selected list
-
-- Filterable, each item removable with <Kbd>×</Kbd>, or "remove all".
-- The main executable never appears in the tree — it does not need to be merged into itself.
-- Every entry carries its relative path, so it can be pasted into other tools without reassembling it.
-
-## A changed view is not a changed selection
-
-These are two different events and they are easy to conflate:
-
-- **Selection changed** (`onChange`) writes back to the project and schedules a debounced save;
-- **View changed** (`onView`) — folding a directory, changing a filter — only changes what is visible and
-  must **not** trigger a save.
-
-But the footer counter ("showing N items") does have to follow the view. That bug happened for real:
-after folding a directory the counter did not move, and users assumed the fold had failed. So the tree
-emits two callbacks, one for each concern.
-
-<Callout tone="pitfall" label="If you are changing this code">
-
-Scanning a directory and refreshing excludes are both async, and both write into module-level state. If a
-stale request resolves after a newer one while switching projects, the previous project's tree gets
-mounted onto the current one. Each has its own monotonically increasing epoch and discards the result on
-mismatch.
-
-**The two counters must stay separate** — checking a file triggers an excludes refresh, so sharing one
-counter makes an in-flight scan invalidate itself. And every early-return path has to land
-`scanning = false`, or a discarded request leaves "scanning…" on the step bar forever.
+The tree cannot know when files are deleted in Explorer. Right-click the project row and choose
+**Reload project**; it re-reads the project JSON and rescans the main program folder.
 
 </Callout>

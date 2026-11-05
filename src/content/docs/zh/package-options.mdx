@@ -7,6 +7,9 @@ order: 2
 
 ## 组 1 · 压缩格式
 
+> 产物类型（完整包 / 升级包 / 两者）不在这 19 项里：它是打包阶段的分支开关，不写进 `[Setup]`。
+> 它决定 `${files}` 怎么展开，见[完整包与升级包](/docs/upgrade)。
+
 | 选项 | 默认 | 说明 |
 | --- | --- | --- |
 | `compression` | `lzma2/max` | 算法 + 等级写成一个值。可选 `lzma2/max` `lzma2/normal` `lzma2/fast` `lzma/max` `lzma/normal` `lzma/fast` `zip` `bzip` `none` |
@@ -15,9 +18,6 @@ order: 2
 | `lzmaNumBlockThreads` | `0` | 0 表示不写这一行，Inno 用它自己的默认值 1。官方范围 1–256 |
 | `lzmaMatchFinder` | `bt` | `BT`（二叉树）压缩率更高但更吃内存 / `HC`（哈希链）省内存、略快 |
 | `lzmaUseSeparateProcess` | 关 | 32 位编译器在用了大字典 + 多线程后报「内存不足」时打开它 |
-
-
-<Figure src="/shots/23-package-options.png" alt="安装包选项的五组参数" caption="打包选项 —— 压缩、模式、加密与签名、安装行为、校验清单" />
 
 ## 组 2 · 打包模式
 
@@ -66,10 +66,6 @@ order: 2
 两件事不冲突，别为了「反正运行时要传口令」而把编译期的 `Password` 删掉。
 
 </Callout>
-
-
-<Figure src="/shots/29-package-crypto.png" alt="安装包加密与签名选项" caption="加密与签名 —— 口令派生、签名工具与卸载程序签名" />
-
 ## 组 4 · 安装行为
 
 | 选项 | 默认 | 说明 |
@@ -83,7 +79,7 @@ order: 2
 
 | 选项 | 默认 | 说明 |
 | --- | --- | --- |
-| `checksum` | `none` | 打包完成后在输出目录生成 `checksums-<算法>.txt`。`sha256`（推荐）/ `sha1` / `md5`（后两者只在与旧系统对接时才用，都已被证明可构造碰撞） |
+| `checksum` | `none` | 打包完成后在输出目录生成 `checksums-<算法>.txt`。`sha256`（推荐）/ `sha1` / `md5`（后两者只在与旧系统对接时才用，都已被证明可构造碰撞）。升级包与「两者」会改用 `checksums-upgrade-…` / `checksums-both-…`，避免互相覆盖 |
 
 ## 为什么只列 9 档压缩
 

@@ -80,9 +80,9 @@ order: 3           # 组内顺序
 
 ## 截图
 
-`public/shots/` 里的图来自应用仓库的 `docs/shots/` —— 那是 CDP 探针跑出来的整窗截图（1360×900），
-比 README 里那几张精修图更「真」：状态栏、日志、错误横幅都在。正文用 `<Figure>` 引用，编号按页
-自动递增（`图 01`），点图在新标签页看原图。目前 23 张分布在 10 个页面里。
+`public/shots/` 里的图来自应用仓库：向导步骤用 `docs/images/` 的精修图，升级包与工程管理用
+`docs/shots/` 的 CDP 探针截图。正文用 `<Figure>` 引用，编号按页自动递增（`图 01`），
+点图在新标签页看原图。
 
 ## 设计约定
 
@@ -91,8 +91,9 @@ order: 3           # 组内顺序
 - **暗色不是反色**：换成更暗的纸 `#17140f`，保留同样的线宽与对比关系 —— 纯黑底会让 1px 的线消失。
 - **h2 的编号挂在左侧边栏**里，窄屏收起。编号由 CSS counter 生成，正文里不用手写。
 - **中英各自的行高**：中文 1.85，英文收到 1.72（`html[lang='en']` 覆盖），拉丁文按中文行高排会显散。
-- 字体与[应用本体](https://github.com/hmilyld/SealPack)同一套：Instrument Sans + JetBrains Mono，
-  中文回落到系统字体。
+- 字体是本网站自己的：Instrument Sans + JetBrains Mono，中文回落到系统字体。应用本体用的是
+  Windows 系统的 Segoe UI Variable + Cascadia Mono，两者刻意不同 —— 文档站是纸墨风格，
+  应用是 Fluent。
 
 ## 校验
 

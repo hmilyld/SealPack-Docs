@@ -1,6 +1,6 @@
 ---
 title: Shortcuts, menus & window
-description: The global shortcut table intercepts without swallowing events, the context menu is hand-drawn, and eight hit zones take over edge resizing on a frameless window.
+description: One Fluent theme, a frameless window, a hand-drawn context menu, and project reload / rename / delete.
 group: Getting started
 order: 5
 ---
@@ -16,9 +16,11 @@ order: 5
 | <Kbd>↑</Kbd> <Kbd>↓</Kbd> <Kbd>Home</Kbd> <Kbd>End</Kbd> | Move focus in the tree and in menus |
 | <Kbd>→</Kbd> <Kbd>←</Kbd> | Expand / collapse, step into / out of a folder |
 | <Kbd>Space</Kbd> / <Kbd>Enter</Kbd> | Toggle the tree checkbox |
+| <Kbd>Ctrl</Kbd> + <Kbd>A</Kbd> | Select all visible files |
 
 Inside a dialog, <Kbd>Tab</Kbd> cycles within the panel and <Kbd>Enter</Kbd> triggers the primary action.
-<Kbd>Esc</Kbd> and clicking the backdrop both end the dialog properly; neither leaves the caller hanging.
+The primary action is on the right and Cancel on the left (Fluent convention). When the settings dialog
+opens, focus starts on the dialog container, so the first tab does not get an initial focus ring.
 
 <Callout tone="pitfall" label="Do not swallow Esc">
 
@@ -28,68 +30,53 @@ global table swallows it, the dialog cannot be closed.
 
 </Callout>
 
-
-<Figure src="/shots/10-dialog-button-order.png" alt="A dialog with the primary action on the left" caption="Dialogs — primary action on the left, Tab stays inside the panel" />
-
 ## Context menu
-
-A desktop program has a context menu on right click. SealPack replaces WebView2's native menu with a
-hand-drawn one that follows the current skin, keeps full keyboard semantics (<Kbd>↑</Kbd> <Kbd>↓</Kbd>
-cycle, <Kbd>Home</Kbd> / <Kbd>End</Kbd> jump, <Kbd>Enter</Kbd> activates, <Kbd>Esc</Kbd> closes and
-returns focus), and nudges itself back inside the viewport near edges.
 
 | Where | Items |
 | --- | --- |
-| Project row | Open executable folder / open output folder / delete project |
-| File tree | Check current results / select all / select none / clear selection and filters / rescan |
-| Inputs and script area | Cut / copy / paste / select all |
-| Run log | Copy all output / clear log |
-| Theme button | Window material toggle (Mica Alt) |
+| Project row | Open executable folder / open output folder / reload project / copy project name / rename… / delete project… |
+| File tree | Copy path / reveal in Explorer |
+| Run log | Copy all output / save log / clear log |
+| Inputs and script area | Native edit menu (cut / copy / paste / spell check) |
 
+**Reload project** first saves any pending edits, then re-reads the project JSON from disk and rescans the
+main program folder. Use it after deleting files outside SealPack.
 
-<Figure src="/shots/08-context-menu.png" alt="The hand-drawn context menu following the current skin" caption="Context menu — hand-drawn, skin-aware, full keyboard semantics" />
+**Rename…** opens a dialog prefilled with the main executable's `ProductName` (falling back to the file
+name). The project name is used for the installer name, default install directory, and output file name;
+the executable and old artifacts are not renamed.
+
+**Delete project…** removes only the project configuration `projects\<id>.json`. The main program,
+installers, manifests, checksums, and logs in the output directory are kept.
+
+<Figure src="/shots/34-project-delete.png" alt="Delete project: the dialog explains only the configuration is removed" caption="Delete project — configuration only; artifacts and logs stay" />
+
+<Figure src="/shots/33-project-rename.png" alt="Rename project: the dialog prefills the executable's product name" caption="Rename project — prefilled product name, editable before saving" />
 
 ## The window
 
-- **Frameless, hand-drawn title bar**: minimise / maximise / close are drawn by the frontend, the bar
-  drags the window, double-click toggles maximise. A frameless window loses Windows' own edge resizing,
-  so **eight transparent hit zones** take over the four edges and four corners.
+- **Frameless, hand-drawn title bar**: minimise / maximise / close are drawn by the frontend; the bar
+  drags the window and double-click toggles maximise. Eight transparent hit zones take over edge resizing.
 - **Window materials**: on Windows 11 with Mica Alt enabled, the title bar, sidebar and status bar go
-  translucent while the content area stays opaque. Any of three gates failing drops back to a solid
-  colour: `set_effects()` fails (Windows 10), the user disabled it (right-click the theme button), or the
-  system has "reduce transparency" on. A `▾` on the theme button means the menu exists.
-- **Window size and maximised state are remembered, position is not** — the window always opens centred,
-  so a monitor you unplugged last time cannot hide it.
-- The window is created with `visible: false`; the frontend shows it after "write skin → two rAF frames →
-  `show()`", so startup never flashes a white background. Rust has a 1.5 s fallback so a script error
-  cannot leave the window invisible.
+  translucent while the content area stays opaque. "Reduce transparency" falls back to solid colours.
+- **Window size and maximised state are remembered, position is not** — the window always opens centred.
+- The window is created with `visible: false`; the frontend shows it after the first frame, with a 1.5 s
+  Rust fallback.
 
-## Two designs, three light/dark modes
+## One Fluent theme
 
-One click on the switcher in the title bar changes the design live. Both designs **share the same DOM**;
-the difference is 100% CSS.
+The UI is React + Fluent UI React v9 + Griffel. There is one Fluent design and no second skin.
 
-| Design | Type | Accent | Default theme in manual mode |
-| --- | --- | --- | --- |
-| Swiss grid | Instrument Sans + JetBrains Mono | warm paper `#faf8f5` + vermilion `#d8332a` | light |
-| Terminal | Chakra Petch + IBM Plex Mono | near-black `#05070a` + cyan `#35d6e8` / acid green `#a3e635` | dark |
+| Item | Value |
+| --- | --- |
+| Accent | Windows 11 blue `#005FB8` |
+| Type | Segoe UI Variable Text / Display; Cascadia Mono for paths, logs and code |
+| Body | 14 px / 20 px; 30 px tree rows; 32 px controls |
+| Canvas | Light grey canvas with white content cards; secondary sections sit directly on the canvas |
+| Radius | 4 px controls, 8 px panels |
 
+Light/dark has three modes: `auto (follow system) → dark → light → auto`, stored in
+`localStorage["sealpack:theme"]`. Auto is the default and follows the Windows app mode; a manual choice
+is not overridden by the system.
 
-<Figure src="/shots/25-terminal-wizard-tree.png" alt="The wizard and file tree under the terminal skin" caption="Terminal skin — the same DOM as the screenshots above, only the CSS differs" />
-
-Light/dark has three modes, cycled by the theme button:
-`auto (follow system) → dark → light → auto`.
-
-The default is **auto** — a local program should respect the Windows app mode instead of deciding for
-itself. The system value comes from `prefers-color-scheme` (WebView2 maps it to the Windows app mode), and
-the UI follows live without a restart. Once you choose manually the system no longer overrides it, and
-**each design remembers its own** light/dark setting, restored when you switch back.
-
-<Callout tone="note" label="Why not fork the DOM">
-
-Skin and theme live on `<html>` as `data-skin` / `data-theme` / `data-themeMode`. Dialogs and toasts hang
-off `<body>` but switch at the same time, so there is no intermediate state where some elements still
-wear the old skin. Forking the DOM per skin would start the two implementations drifting apart — and only
-users would see it.
-
-</Callout>
+<Figure src="/shots/01-setup.png" alt="Main program page: grey canvas, white content card, aligned form controls" caption="Main program page — one Fluent theme with aligned form controls" />

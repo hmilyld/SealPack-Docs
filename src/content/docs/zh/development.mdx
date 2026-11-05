@@ -58,19 +58,18 @@ pnpm run dev          # 然后浏览器打开 http://localhost:1420/preview.html
 
 | 参数 | 作用 |
 | --- | --- |
-| `?skin=swiss` / `?skin=terminal` | 指定设计 |
-| `?theme=light` / `?theme=dark` | 指定主题（同时退出自动模式） |
+| `?theme=light` / `?theme=dark` / `?theme=system` | 指定主题；`system` 跟随 `prefers-color-scheme` |
 | `?material=on` | 让 mock 回报「窗口材质可用」，走一遍半透明 chrome 的分支 |
 | `?pick=none` | 让文件选择框一律返回「用户取消」，用于验证取消分支 |
 | `?dialog=settings` | 自动打开设置面板 |
 | `?dotnet=missing` | 模拟未安装 .NET Framework，用于验证环境告警横幅 |
 
-覆盖结果会先写进 `localStorage`，再交给 `src/skin.ts` 的皮肤控制器读取，
-所以预览参数与界面上的切换器不会互相打架。
+覆盖结果会先写进 `localStorage["sealpack:theme"]`，再交给 `ThemeProvider` 读取，
+所以预览参数与界面上的主题切换器不会互相打架。
 
 <Callout tone="pitfall">
 
-`preview/entry.ts` 必须用**动态 import** 拉 `src/main.ts`：静态 import 会被提升，mock 就装不上了。
+`preview/entry.ts` 必须用**动态 import** 拉 `src/main.tsx`：静态 import 会被提升，mock 就装不上了。
 这个问题只有构建产物会暴露（dev 下 ESM 原生按声明顺序求值，看不出问题）。
 
 </Callout>
@@ -88,16 +87,20 @@ node scripts/ui-probe.mjs "file:///D:/Codespace/SealPack/SealPack/dist-preview" 
 探针需要一个 Chromium 系浏览器：先看 `CHROME_PATH`，否则依次试常见安装位置。
 **Edge 也能跑** —— 两者是同一个引擎、同一套 CDP 与命令行开关，实测截图逐字节一致。
 
-它按六组断言跑完，最后打印 `FAIL` 列表并以退出码反映结果：
+它按 A–J 十组断言跑完，最后打印 `FAIL` 列表并以退出码反映结果：
 
 | 组 | 盯的是 |
 | --- | --- |
-| A. 设计切换 | 自动模式实时跟随系统；手动后系统变化不再影响；每套设计各记自己的明暗；刷新后持久化 |
-| B. 原生感 | 标题栏高度、caption 按钮、状态栏、正文 12px、`user-select: none`、动效令牌、焦点环、材质两条路径 |
-| C. 交互 | 右键菜单键盘语义、文件树 roving tabindex、对话框 `Esc` 让调用方 Promise 结束、主操作在左 |
-| D. 向导 | 五步结构、跳步、三个热区互不干扰、搜索收敛、折叠后底栏刷新、模板重建、全部执行 |
-| E. 选项面 | 分组渲染、默认值标注、条件显示、预设联动、参数真的落进模板、绿色版丢快捷方式 |
-| F. 修复回归 | 步骤条 tab 语义、重新扫描按钮接线、toast 是 live region、`writes` 被消费、口令字段类型 |
+| A. 主题 | 浅色 / 深色写入根元素；跟随系统时模拟 `prefers-color-scheme` 能实时切换 |
+| B. 原生感 | 标题栏 40px、状态栏 28px、正文 14px、`user-select: none`、默认箭头光标、五个步骤、4pt 间距 / 树行 30px / 卡片圆角 8px |
+| C. 交互 | 三态勾选、整行点击切换、工程右键菜单、`Esc` 关闭、步骤条方向键 |
+| D. 向导与文件树 | 合并页隐藏主程序、合并清单计数、打包页锁定主程序 / 自动排除项、全部打包 / 全部排除覆盖折叠目录、整行点击 |
+| E. 选项 | 预设可点、加密模板随预设重建、打包预设切换绿色版 |
+| F. 执行与预检 | 构建预检出现、有警告先确认、单独执行后状态与产出文件 |
+| G. 持久化 | 刷新后主题保持 |
+| H. 升级包 | 产物切换、基线清单与差异、`both` 产出两个安装包 |
+| I. 设置 | 打开时焦点不在第一个 tab、footer 在对话框内、内容区高度受限 |
+| J. 工程管理 | 重命名预填产品名、删除弹窗只删配置、重新加载工程 |
 
 ### 探针踩过的坑
 
@@ -106,7 +109,8 @@ node scripts/ui-probe.mjs "file:///D:/Codespace/SealPack/SealPack/dist-preview" 
 - **树形缩进这类几何问题必须实测 `getBoundingClientRect()`**，不要靠缩放后的截图目测。
 - **`press()` 返回的是「要 evaluate 的表达式字符串」，不是 Promise**。
 - **面板是 `display: none` 时元素拿不到焦点** —— 测文件树之前必须先切到那一步。
-- **条件显示用 `hidden` + 显式 `display: none`** —— `.opt` 本身是 `display: flex`，只写 `[hidden]` 压不住。
+- **Fluent 的 Dialog / Menu / Toast 都走 portal** —— 选择器要在整个 document 里找。
+- **Fluent 对 `data-testid` 的透传不保证** —— 优先用 `role` / `aria-label` / `title` / `data-step`。
 
 ## 生成器一致性
 
@@ -121,22 +125,26 @@ fixture 已随仓库提交（22 个用例，覆盖默认值、每条带参数的
 XML 转义、分卷、绿色版、加密三态、签名、LZMA 参数、未知取值回退与官方边界值），
 所以第二条命令不装 Rust 也能跑。**改任何一侧的生成器后都要跑一次。**
 
+升级包的展开逻辑在 `packaging.rs`，不经过 `defaults.rs`，因此不参与 fixture；它由 Rust 单测覆盖。
+
 ## Rust 单元测试
 
 集中在几处最容易悄悄改坏、又最难在界面上发现的地方：
 
 - `defaults::tests` —— 「选项 → 模板」的映射：参数是否写对位置（`snKey` 在 `<module>` 上）、
-  取值是否规范、参数是否只在合法组合下出现、不认识的值是否退回默认、`[Files]` 里主程序是否只出现一次。
+  取值是否规范、参数是否只在合法组合下出现、不认识的值是否退回默认、模板里是否保留 `${files}` 等占位符。
+- `packaging::tests` —— 完整包 / 升级包的文件段、`[InstallDelete]`、升级专用 `[Setup]` 与 `[Code]`。
+- `manifest::tests` —— 基线清单的读写与 SHA-256 差异（新增 / 修改 / 删除 / 未变）。
 - `model::tests` —— `relative_to` 的语义（大小写不敏感、分隔符归一、多字节路径不 panic）、
   `auto_ignores` / `ignore_list` 的相对化与去重。
 - `pipeline::tests` —— 日志打码必须覆盖所有已知口令参数；产出识别只认「本次新产生 / 本次被改写」的文件。
-- `store::tests` —— `\\?\` 前缀归一、工程 Id 的路径穿越防护、工作目录清理只动陈旧目录。
+- `store::tests` —— `\\?\` 前缀归一、工程 Id 的路径穿越防护、工作目录清理只动陈旧目录、旧工程迁移。
 - `hash::tests` —— 摘要算法用公开测试向量（`"abc"` 与空输入）钉住，另测跨 64KB 块边界不丢字节。
 - `download::tests` —— 解压逻辑用真实形状的压缩包覆写，外加声明自洽性。
 - `tools::tests` —— 三级回退与 Inno Setup 的本机探测。
 
-另有几条**默认忽略**的测试（`cargo test -- --ignored`）：3 条真实去 NuGet / GitHub / 官方源下载并解压，
-确认字节数与校验值都对得上；1 条生成 fixture。它们**没有**进 CI —— 依赖外网与第三方站点的可用性，
+另有几条**默认忽略**的测试（`cargo test -- --ignored`）：真实去 NuGet / GitHub / 官方源下载并解压，
+确认字节数与校验值都对得上；以及生成 fixture。它们**没有**进 CI —— 依赖外网与第三方站点的可用性，
 让它们卡住 PR 只会制造噪声。
 
 ## 构建与发布
@@ -150,16 +158,19 @@ pnpm run app:build    # NSIS 安装包 → src-tauri/target/release/bundle/nsis/
 ```bash
 # 1. 三处版本号一起改（release.yml 会核对，不一致直接失败）：
 #    package.json / src-tauri/tauri.conf.json / src-tauri/Cargo.toml
-# 2. 提交、推送，然后打标签：
-git tag -a v0.2.0 -m "..." && git push origin v0.2.0
+# 2. 把 CHANGELOG.md 的 [Unreleased] 改成 [版本号] - YYYY-MM-DD
+# 3. 提交、推送，然后打标签：
+git tag -a vX.Y.Z -m "..." && git push origin vX.Y.Z
 ```
 
 推 `v*` 标签会自动构建并创建 GitHub Release，安装包作为附件挂上去。
+Release 正文目前由 `--generate-notes` 生成；`CHANGELOG.md` 是给下一次发版准备的更新内容来源，
+要让它直接进 Release 正文，需要再改 `release.yml`。
 
 <Callout tone="warn">
 
 **安装包的文件名与界面上的版本号来自 `tauri.conf.json` 的 `version`，标签只是触发器。**
-忘记改版本号的话，Release 标着 v0.2.0、装出来的却是 0.1.0 —— 所以 `release.yml` 里有一道
+忘记改版本号的话，Release 标着新版本、装出来的却是旧版本 —— 所以 `release.yml` 里有一道
 「标签与版本号一致」的核对。
 
 </Callout>

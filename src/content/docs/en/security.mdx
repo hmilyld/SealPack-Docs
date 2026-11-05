@@ -14,7 +14,7 @@ order: 2
 | Downloaded tools | `%APPDATA%\com.hmilyld.sealpack\tools\` |
 | Stage scratch files | `%APPDATA%\com.hmilyld.sealpack\work\<project id>\` |
 | Downloaded packages (cache) | `%APPDATA%\com.hmilyld.sealpack\work\downloads\` |
-| UI preferences (skin / theme / materials) | WebView `localStorage`, key `sealpack:design` |
+| UI preferences (light / dark) | WebView `localStorage`, key `sealpack:theme` |
 
 Project directories under `work\` older than **24 hours** are cleaned at startup (the `downloads\` cache is
 skipped) — an abnormal exit can leave scratch files behind, and the encryption config and packaging script
@@ -100,14 +100,15 @@ parameter leaks silently. The table is asserted key by key in a unit test.
 
 ## The rendering attack surface
 
-Every piece of dynamic text interpolated into `innerHTML` passes through `esc()` in `src/util.ts` (project
-names, paths, tool output). Project ids are restricted to `[A-Za-z0-9-]`, so they cannot be used for path
-traversal (`store.rs::validate_id`).
+The UI is React, so dynamic text renders as text nodes rather than through `innerHTML`; there are no
+hand-escaped interpolation points. Project ids are restricted to `[A-Za-z0-9-]`, so they cannot be used
+for path traversal (`store.rs::validate_id`).
 
 The CSP is `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'`:
 
-- no remote resources at all; fonts are bundled;
-- `style-src` allows inline styles (components use inline `style` attributes for geometry);
+- no remote resources at all; fonts are the system Segoe UI Variable / Cascadia Mono, so nothing has to
+  be bundled or downloaded;
+- `style-src` allows inline styles (Griffel injects style rules at runtime);
 - `script-src 'self'` has no `'unsafe-inline'` — the first-frame theme bootstrap in `index.html` runs
   because Tauri injects a CSP hash/nonce at build time. **Changing the CSP requires re-testing the first
   frame.**

@@ -19,7 +19,7 @@ The version string comes from `tauri.conf.json`; the git tag only triggers the b
 
 | Need | Version | What happens without it |
 | --- | --- | --- |
-| Windows | 10 1809+ / 11 | It will not install. Window materials (Mica Alt) need Windows 11 |
+| Windows | 10 1809+ / 11 | It will not install. Window materials (Mica Alt) need Windows 11; Windows 10 falls back to solid colours |
 | .NET Framework | 4.8+ | A banner appears and the merge and obfuscate stages become unavailable |
 | WebView2 runtime | — | Ships with Windows 11; installed on demand on Windows 10 |
 
@@ -33,9 +33,6 @@ first two tools it drives do. That is why the environment check reports "which s
 rather than "cannot run".
 
 </Callout>
-
-
-<Figure src="/shots/16-banner-dotnet-swiss.png" alt="The warning banner shown when .NET Framework is missing" caption="The environment banner — names what is missing and which two stages it affects" />
 
 ## The three external tools
 
@@ -53,8 +50,6 @@ If the toolchain is missing on first run, open **settings** (<Kbd>Ctrl</Kbd> + <
 download:
 
 <Figure src="/shots/07-settings.png" alt="Settings panel: tool paths, download buttons and the environment check" caption="Settings · tool paths, download sources and local detection" />
-
-<Figure src="/shots/31-settings-download.png" alt="A tool download in progress with its source" caption="Downloading — source, progress and checksum are all on screen" />
 
 
 - **ILMerge** comes from the NuGet feed. The package is a `.nupkg` (a zip in disguise) and the real files

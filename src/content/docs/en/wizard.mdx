@@ -19,8 +19,6 @@ The interface cuts the workflow into five steps, and each step shows exactly one
 - **Skipping is a normal path** — a step with nothing selected is skipped at run time, not treated as an error.
 - **Failure stops the run** — a failing stage keeps its log and the later stages do not execute.
 
-<Figure src="/shots/14-new-project.png" alt="The new-project dialog: executable and installer output directory" caption="New project — one executable and one output directory fix the scan root" />
-
 ## ① Executable
 
 Pick the `.exe` to work on. Its directory becomes the scan root for the next two steps: it decides what
@@ -63,9 +61,11 @@ then asks "also overwrite the template with these options?". To hand control bac
 
 ## ④ Package
 
-The upper half lists **files excluded from the installer**; the lower half holds the **installer options**:
-compression and LZMA parameters, packaging mode, encryption and signing, install behaviour, integrity
-checks. Details in [packaging & excludes](/en/docs/package) and [package options](/en/docs/package-options).
+The left side is the **file tree of what gets packed**; the right side chooses the **artifact** (full
+installer / upgrade package / both) and holds the **installer options**: compression and LZMA parameters,
+packaging mode, encryption and signing, install behaviour, integrity checks. Details in
+[packaging & excludes](/en/docs/package), [full and upgrade packages](/en/docs/upgrade) and
+[package options](/en/docs/package-options).
 
 ## ⑤ Run
 

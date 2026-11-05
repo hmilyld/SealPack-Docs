@@ -22,8 +22,6 @@ When `generated: false`, the UI shows a banner with "overwrite template with cur
 can be handed back at any time. Both "restore default options" and "restore default template" set
 `generated` back to `true`.
 
-<Figure src="/shots/28-encrypt-template.png" alt="The advanced area: a collapsible template editor with placeholder chips" caption="Advanced — the editor is collapsed by default; placeholder chips sit above it" />
-
 ## Placeholders
 
 Templates reference project values with `${key}` syntax, substituted at **run time** (not while you edit).
@@ -32,6 +30,7 @@ Templates reference project values with `${key}` syntax, substituted at **run ti
 | Placeholder | Meaning |
 | --- | --- |
 | `${id}` | project id (GUID) |
+| `${appId}` | application id (AppId): decides upgrade vs fresh install |
 | `${name}` | project name |
 | `${root}` | directory containing the executable |
 | `${exe}` | executable filename including extension |
@@ -40,13 +39,23 @@ Templates reference project values with `${key}` syntax, substituted at **run ti
 | `${output}` | installer output directory |
 | `${version}` | version string |
 | `${password}` | installer password |
-| `${ignore}` | packaging excludes (merged assemblies plus the backup, comma separated) |
+| `${ignore}` | packaging excludes (merged assemblies, the backup, and an output directory inside the root; comma separated) |
+| `${files}` | file section: wildcard lines for a full package, changed-file list for an upgrade (filled during packaging) |
+| `${installDelete}` | the upgrade's `[InstallDelete]` section; empty for a full package |
+| `${artifactSetup}` | upgrade-only `[Setup]` directives (skip directory / ready / finished pages); empty for a full package |
+| `${artifactCode}` | upgrade-only `[Code]` (skip the tasks page and check the old version); empty for a full package |
+| `${artifactLabel}` | artifact label: `安装包` / `升级包`, used in the output filename |
+| `${runSection}` | the `[Run]` section; empty for an upgrade |
+| `${baselineVersion}` | baseline version for an upgrade; empty for a full package |
 
-Clickable placeholder chips at the top of the advanced area insert them at the caret.
+Clickable placeholder chips at the top of the advanced area insert them at the caret. Do not hand-edit the
+ones marked "filled during packaging" — `packaging.rs` expands them per artifact type.
 
 ## The shape of the packaging script
 
-The generated `.iss` contains two `Source` lines:
+The generated `.iss` template writes only `${files}` in `[Files]`; `packaging.rs` expands it per artifact.
+
+A **full package** expands into two `Source` lines:
 
 ```ini
 Source: "${root}\${exe}"; DestDir: "{app}"; Flags: ignoreversion
@@ -56,6 +65,19 @@ Source: "${root}\*"; Excludes: "${ignore},${exe}"; DestDir: "{app}"; Flags: igno
 The second line must exclude the executable (`${exe}`), or the same file is packed twice — Inno reports a
 duplicate and the size accounting double-counts. `${ignore}` always contains the backup, so the string
 never starts with a stray comma.
+
+An **upgrade package** expands into one line per new / modified file, keeping the relative directory;
+removals go to `[InstallDelete]`:
+
+```ini
+Source: "D:\app\bin\new.dll"; DestDir: "{app}\bin"; Flags: ignoreversion
+[InstallDelete]
+Type: files; Name: "{app}\old.dll"
+```
+
+`${artifactSetup}` / `${artifactCode}` / `${runSection}` are empty for a full package. For an upgrade they
+skip the directory / ready / finished pages, skip the tasks page while checking the installed version, and
+drop the "launch after install" entry.
 
 ## How the ConfuserEx config is generated
 

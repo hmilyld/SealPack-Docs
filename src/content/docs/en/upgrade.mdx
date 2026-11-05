@@ -1,0 +1,67 @@
+---
+title: Full and upgrade packages
+description: One project can produce a full installer, an upgrade package, or both. The upgrade package diffs against a baseline manifest, installs only changed files, and removes stale ones.
+group: Reference
+order: 6
+---
+
+## Two artifacts
+
+The **Artifact** control on the Package step decides what this build produces:
+
+| Choice | Artifact | Install experience |
+| --- | --- | --- |
+| Full installer | `<name>-安装包-<version>.exe` | Inno wizard, choose a directory |
+| Upgrade package | `<name>-升级包-<version>.exe` | Skips directory / tasks / ready / finished pages, installs into the previous directory |
+| Both | Two exes | As above |
+
+An upgrade package is not a new stage. Merge, encrypt and AppId stay the same; only the packaging step's file list and wizard directives differ.
+
+<Figure src="/shots/32-upgrade.png" alt="Upgrade diff on the Package step: baseline, added / modified / deleted / unchanged" caption="Upgrade diff — baseline card and read-only change list" />
+
+## Baseline manifest
+
+Every successful package build writes `sealpack-manifest-<version>.json` into the output directory:
+
+- relative path, size and SHA-256;
+- AppId, version, install mode (admin / current user), packaging mode, uninstallable flag;
+- it describes the **complete installed state**, not a delta.
+
+Upgrade builds default to the newest manifest with the same AppId; you can also pick a manifest or an old version folder. The diff compares SHA-256, not timestamps.
+
+## Automatic diff
+
+- New / modified files go into the upgrade package;
+- removed files are written to `[InstallDelete]`;
+- unchanged files are not packed again;
+- the main executable is always included when it changed.
+
+The file set is **read-only** in the UI; there is no manual checkbox list, so files cannot be accidentally omitted. The upgrade manifest records the actual installed state, so chained upgrades do not lose files.
+
+## Target-machine checks
+
+The upgrade installer reads the `<AppId>_is1` uninstall registry key in `[Code]`:
+
+- no previous install → abort and tell the user to use the full installer;
+- installed version differs from the baseline → one confirmation, default is to stop;
+- install mode must match the baseline, otherwise Inno treats it as another application.
+
+<Callout tone="warn" label="Limits">
+
+- Upgrade packages only support the single-file installer; portable, multi-volume, and non-uninstallable projects are rejected by preflight.
+- The upgrade package does not launch the app after install.
+- With `Encryption=yes` the user still enters the password once; `full` requires `installer.exe /PASSWORD=...`.
+
+</Callout>
+
+## Checksums
+
+Checksum files are named per artifact so they do not overwrite each other:
+
+- `checksums-<algorithm>.txt` (full)
+- `checksums-upgrade-<algorithm>.txt` (upgrade)
+- `checksums-both-<algorithm>.txt` (both)
+
+## Choosing between them
+
+Upgrade packages are only for machines that already have the baseline version. New users, portable builds, multi-volume builds, or unknown target versions should receive the full installer.

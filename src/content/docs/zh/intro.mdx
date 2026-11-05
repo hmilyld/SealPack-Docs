@@ -8,11 +8,13 @@ order: 1
 SealPack 把三个成熟的外部命令行工具收进一个窗口：先合并程序集，再混淆加密，最后生成安装包。
 每一步都有独立的开关面，改完立刻重算配置模板，点一次执行就按顺序跑完。
 
+界面是 React 18 + Fluent UI React v9 + Griffel，只有一套跟随 Windows 的 Fluent 主题。
+
 它不实现任何密码学算法 —— 混淆由 ConfuserEx 完成，安装包加密由 Inno Setup 完成。
 SealPack 负责的是**工程管理、参数编排、模板渲染与实时日志回传**，也就是把「读三份文档、手写两份配置」
 变成「点几下开关」。
 
-<Figure src="/shots/02-merge.png" alt="SealPack 主界面：五步向导停在合并步骤" caption="五步向导 · ② 合并（瑞士技术网格皮肤）" />
+<Figure src="/shots/02-merge.png" alt="SealPack 主界面：五步向导停在合并步骤" caption="五步向导 · ② 合并" />
 
 ## 三个阶段
 
@@ -20,7 +22,7 @@ SealPack 负责的是**工程管理、参数编排、模板渲染与实时日志
 | --- | --- | --- | --- |
 | ① 程序合并 | [ILMerge](https://github.com/dotnet/ILMerge) | 把多个程序集合并进主程序 | 覆盖后的 `.exe` |
 | ② 程序加密 | [ConfuserEx](https://github.com/mkaring/ConfuserEx) | 混淆 + 压缩保护主程序 | 覆盖后的 `.exe` |
-| ③ 安装包打包 | [Inno Setup](https://jrsoftware.org/isinfo.php) | 生成安装程序，支持安装口令、整包加密与代码签名 | `Setup.exe` 与校验清单 |
+| ③ 安装包打包 | [Inno Setup](https://jrsoftware.org/isinfo.php) | 生成完整安装包或升级包，支持安装口令、整包加密与代码签名 | `Setup.exe` 与校验清单 |
 
 三步各自都可以跳过：没勾选程序集就不合并，没启用保护就不加密，直接打包也成立。
 某一步失败则整体停下并保留日志 —— 后面的步骤依赖前一步的产物，拿半成品继续往下跑只会得到更难排查的错误。

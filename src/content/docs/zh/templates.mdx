@@ -20,8 +20,6 @@ order: 3
 `generated: false` 时界面会给出提示条与「用当前选项覆盖模板」按钮，随时可以交回开关管理。
 「恢复默认选项」与「恢复默认模板」都会把 `generated` 置回 `true`。
 
-<Figure src="/shots/28-encrypt-template.png" alt="高级区：可折叠的模板编辑器与占位符 chip" caption="高级区 —— 模板编辑器默认收起，顶部有可点击的占位符 chip" />
-
 ## 占位符
 
 模板里用 `${key}` 语法引用工程的实际值，**执行阶段**才替换（不是在编辑模板时）。
@@ -30,6 +28,7 @@ order: 3
 | 占位符 | 含义 |
 | --- | --- |
 | `${id}` | 工程标识（GUID） |
+| `${appId}` | 应用标识（AppId）：决定覆盖升级还是全新安装 |
 | `${name}` | 工程名称 |
 | `${root}` | 主程序所在目录 |
 | `${exe}` | 主程序文件名（含扩展名） |
@@ -38,13 +37,23 @@ order: 3
 | `${output}` | 安装包输出目录 |
 | `${version}` | 版本号 |
 | `${password}` | 安装包口令 |
-| `${ignore}` | 打包排除项（待合并程序集 + 主程序备份，逗号分隔） |
+| `${ignore}` | 打包排除项（待合并程序集 + 主程序备份 + 根目录内的输出目录，逗号分隔） |
+| `${files}` | 文件段：完整包展开为通配行，升级包展开为变更文件列表（打包阶段填充） |
+| `${installDelete}` | 升级包的 `[InstallDelete]` 段；完整包为空 |
+| `${artifactSetup}` | 升级包的 `[Setup]` 指令（跳过目录 / 就绪 / 完成页）；完整包为空 |
+| `${artifactCode}` | 升级包的 `[Code]`（跳过任务页 + 校验旧版本）；完整包为空 |
+| `${artifactLabel}` | 产物标签：`安装包` / `升级包`，用于输出文件名 |
+| `${runSection}` | `[Run]` 段；升级包为空 |
+| `${baselineVersion}` | 升级基线版本；完整包为空 |
 
-高级区顶部有可点击的占位符 chip，点一下插入到光标处。
+高级区顶部有可点击的占位符 chip，点一下插入到光标处。带「打包阶段填充」的几个占位符不要手工改 ——
+它们由 `packaging.rs` 按产物类型展开。
 
 ## 打包脚本的关键结构
 
-生成的 `.iss` 里有两行 `Source`：
+生成的 `.iss` 模板在 `[Files]` 里只写 `${files}`，由 `packaging.rs` 按产物展开。
+
+**完整包**展开成两行 `Source`：
 
 ```ini
 Source: "${root}\${exe}"; DestDir: "{app}"; Flags: ignoreversion
@@ -53,6 +62,17 @@ Source: "${root}\*"; Excludes: "${ignore},${exe}"; DestDir: "{app}"; Flags: igno
 
 第二行必须把主程序本身排除掉（`${exe}`），否则同一个文件会进包两次 —— Inno 会报重复文件，
 体积统计也会重复计数。`${ignore}` 至少含主程序备份，所以不会拼出以逗号开头的空项。
+
+**升级包**展开成每个新增 / 修改文件一行，并保留相对目录；删除项写入 `[InstallDelete]`：
+
+```ini
+Source: "D:\app\bin\new.dll"; DestDir: "{app}\bin"; Flags: ignoreversion
+[InstallDelete]
+Type: files; Name: "{app}\old.dll"
+```
+
+`${artifactSetup}` / `${artifactCode}` / `${runSection}` 在完整包里为空，升级包则分别加上
+跳过目录页 / 就绪页 / 完成页、跳过任务页并校验旧版本、以及去掉「安装后启动」。
 
 ## ConfuserEx 配置的生成规则
 

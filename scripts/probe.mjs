@@ -158,7 +158,7 @@ async function staticChecks() {
     missingImgs.length === 0,
     missingImgs.slice(0, 4).join('; '),
   );
-  check('截图至少用上 12 张', usedImgs.size >= 12, `${usedImgs.size}`);
+  check('截图至少用上 10 张', usedImgs.size >= 10, `${usedImgs.size}`);
 
   return files;
 }

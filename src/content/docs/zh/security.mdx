@@ -14,7 +14,7 @@ order: 2
 | 自动下载的工具 | `%APPDATA%\com.hmilyld.sealpack\tools\` |
 | 阶段执行时的临时文件 | `%APPDATA%\com.hmilyld.sealpack\work\<工程 id>\` |
 | 下载到的原始包（缓存） | `%APPDATA%\com.hmilyld.sealpack\work\downloads\` |
-| 界面偏好（皮肤 / 明暗 / 材质） | WebView 的 `localStorage`，键名 `sealpack:design` |
+| 界面偏好（明暗模式） | WebView 的 `localStorage`，键名 `sealpack:theme` |
 
 `work\` 下的工程目录会在**程序启动时**清理超过 24 小时的（跳过 `downloads\` 缓存）——
 异常退出（强杀、断电）可能留下临时文件，而加密配置与打包脚本里含明文口令。
@@ -94,12 +94,12 @@ URL、期望字节数、SHA-256、包内结构、来源名与说明。
 
 ## 渲染层的注入面
 
-界面里所有拼进 `innerHTML` 的动态文本都先过 `src/util.ts` 的 `esc()`（工程名、路径、工具输出等）。
+界面是 React，动态文本默认按文本节点渲染，不经过 `innerHTML`；没有需要手工转义的拼接点。
 工程 Id 只允许 `[A-Za-z0-9-]`，因此不能借它做路径穿越（`store.rs::validate_id`）。
 
 CSP 是 `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'`：
 
-- 没有任何远程资源，字体全部本地打包；
-- `style-src` 允许内联样式（组件大量使用内联 `style` 属性做几何计算）；
+- 没有任何远程资源；字体使用系统 Segoe UI Variable / Cascadia Mono，不需要打包或下载；
+- `style-src` 允许内联样式（Griffel 在运行时注入样式规则）；
 - `script-src 'self'` 不含 `'unsafe-inline'` —— `index.html` 里的首帧主题引导脚本能执行，
   依赖 Tauri 在构建时为内联脚本注入 CSP hash/nonce。**改动 CSP 时必须回归启动首帧。**

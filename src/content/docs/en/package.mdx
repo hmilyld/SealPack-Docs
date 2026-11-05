@@ -1,85 +1,70 @@
 ---
-title: Packaging & excludes
-description: Automatic versus custom excludes, why a wildcard cannot contain a comma, and what "writes Excludes" actually produces.
+title: Packaging and excludes
+description: Artifact type, automatic excludes, upgrade diff, the main executable packed once, and checksum naming.
 group: Getting started
 order: 3
 ---
 
-## Upper half: files kept out of the installer
+## Artifact type
 
-The installer sweeps the executable's directory, but some files should never go in. The list has two kinds:
+The **Artifact** control on the Package step decides what this build produces:
 
-**Automatic entries** are derived from the previous two steps and cannot be removed here:
+- **Full installer**: every selected file;
+- **Upgrade package**: only changes relative to the baseline; removals go to `[InstallDelete]`;
+- **Both**: two ISCC runs from the same template, two exes.
 
-- the assemblies being merged — they are already inside the executable, shipping them again duplicates them;
-- the backup `<name>.bakup` — it is a way back, not an artifact.
+Baselines, diffing and target-machine checks are covered in [Full and upgrade packages](/en/docs/upgrade).
 
-They are shown read-only so you can see *why* a file is missing from the installer. An invisible exclude
-rule is more suspicious than a visible one.
+<Figure src="/shots/04-package.png" alt="Package step: file tree, summary and artifact choice" caption="Package step — select the full package on the left, choose the artifact and review the summary on the right" />
 
-**Custom entries** accept relative paths and Inno wildcards, managed through "add file / add folder /
-add wildcard".
+## Full-package file scope
 
-<Figure src="/shots/04-package.png" alt="The packaging step: exclude list above, installer options below" caption="④ Package — excludes on top, installer options below" />
+The full package takes the whole main-program folder, minus files that should not ship:
 
-## A wildcard cannot contain a comma
+**Automatic items** are derived from the previous steps and cannot be removed here:
 
-Inno's `Excludes` is a comma-separated list, so a wildcard with a comma inside is split into two entries —
-the first loses its tail, the second gains a head, and neither matches what you meant. The UI refuses it
-at entry time.
+- assemblies to merge — they are already inside the main executable;
+- the `<main>.bakup` backup — a rollback copy, not an artifact;
+- an output directory inside the root — so the previous build is not packed into the next one.
 
-Expand "writes Excludes" to see the final string:
+**Custom items** accept relative paths and Inno wildcards (`*.pdb`, `docs\*`). They are shown as chips, not
+expanded into the tree. Excludes cannot contain commas: Inno separates `Excludes` entries with commas.
 
-```ini
-Excludes: "*.pdb,app.bakup,Newtonsoft.Json.dll"
-```
+## The main executable is packed once
 
-
-<Figure src="/shots/21-package-excludes.png" alt="Packaging excludes: automatic and custom entries" caption="Excludes — automatic entries are read-only; custom ones take relative paths and wildcards" />
-
-## The executable is included exactly once
-
-The generated `.iss` has two `Source` lines:
+For a full package, `${files}` expands into two `Source` lines:
 
 ```ini
-Source: "{#Root}\App.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#Root}\*"; Excludes: "{#Ignore},App.exe"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "${root}\${exe}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "${root}\*"; Excludes: "${ignore},${exe}"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ```
 
-The second line must exclude the executable as well, or the same file is packed twice — Inno reports a
-duplicate file and the size accounting double-counts. The automatic entries always include the backup, so
-the string never starts with a stray comma.
+The wildcard line must exclude the main executable or the same file is packed twice. An upgrade package
+expands to one `Source` line per changed file and keeps the relative directory.
 
-<Callout tone="verified">
+## Packaging options
 
-This is pinned by assertions: `defaults::tests` checks per case that the executable appears exactly once
-in `[Files]`, and six representative configurations were compiled with a real Inno Setup 6.7, zero
-warnings. See [limits & official references](/en/docs/appendix).
+Five fixed groups: compression, packaging mode, encryption and signing, install behaviour, and integrity.
+See [Packaging options](/en/docs/package-options) for each option. Three common misunderstandings:
 
-</Callout>
+1. **Compression is "algorithm + level" in one value** (`lzma2/max`).
+2. **An LZMA dictionary size of 0 omits the line**, letting Inno choose based on the compression level.
+3. **Installer encryption defaults to `yes`**; Inno's own default is `no`.
 
-## Lower half: installer options
+## Checksums
 
-Five fixed groups: compression, packaging mode, encryption and signing, install behaviour, integrity
-checks. Every option's semantics and default is listed in [package options](/en/docs/package-options);
-three things are worth flagging here:
-
-1. **Compression is "algorithm + level" in a single value** (`lzma2/max`), not two dropdowns.
-2. **A dictionary size of 0 means the line is omitted**, leaving Inno to derive it from the level — almost
-   always the better choice.
-3. **The encryption default differs from Inno's**: Inno defaults to `no`, SealPack defaults to `yes`.
-
-## Checksum manifest
-
-If you picked an algorithm, packaging writes `checksums-<algo>.txt` into the output directory in
-`sha256sum` format — `<digest>  <filename>`, two spaces — so existing tools can verify it:
+When an algorithm is selected, the build writes a checksum file in `sha256sum` format:
 
 ```bat
-certutil -hashfile Setup.exe sha256
+certutil -hashfile installer.exe sha256
 :: or
 sha256sum -c checksums-sha256.txt
 ```
 
-The manifest only contains files **created or rewritten by this build** (a snapshot of the output
-directory before and after, plus modification times), so unrelated files sitting in the folder are never
-counted.
+The file name is per artifact so full and upgrade builds do not overwrite each other:
+
+- `checksums-<algorithm>.txt`
+- `checksums-upgrade-<algorithm>.txt`
+- `checksums-both-<algorithm>.txt`
+
+The list only contains files produced or rewritten by this build, not old files already in the directory.

@@ -7,6 +7,10 @@ order: 2
 
 ## Group 1 · Compression
 
+> The artifact type (full / upgrade / both) is not one of these 19: it is a packaging-stage branch, not a
+> `[Setup]` directive. It decides how `${files}` expands; see
+> [full and upgrade packages](/en/docs/upgrade).
+
 | Option | Default | Notes |
 | --- | --- | --- |
 | `compression` | `lzma2/max` | Algorithm and level in one value. Accepts `lzma2/max` `lzma2/normal` `lzma2/fast` `lzma/max` `lzma/normal` `lzma/fast` `zip` `bzip` `none` |
@@ -15,9 +19,6 @@ order: 2
 | `lzmaNumBlockThreads` | `0` | 0 means the line is omitted and Inno uses its own default of 1. Official range 1–256 |
 | `lzmaMatchFinder` | `bt` | `BT` (binary tree) compresses better but uses more memory / `HC` (hash chain) is lighter and faster |
 | `lzmaUseSeparateProcess` | off | Turn this on when the 32-bit compiler reports out-of-memory with a large dictionary plus threads |
-
-
-<Figure src="/shots/23-package-options.png" alt="The five groups of installer options" caption="Package options — compression, mode, encryption and signing, install behaviour, checksums" />
 
 ## Group 2 · Packaging mode
 
@@ -70,10 +71,6 @@ because a fully encrypted package cannot even show a password prompt. The two do
 delete the compile-time `Password` on the assumption that the runtime one covers it.
 
 </Callout>
-
-
-<Figure src="/shots/29-package-crypto.png" alt="Installer encryption and signing options" caption="Encryption and signing — key derivation, signing tool, signed uninstaller" />
-
 ## Group 4 · Install behaviour
 
 | Option | Default | Notes |
@@ -87,7 +84,7 @@ delete the compile-time `Password` on the assumption that the runtime one covers
 
 | Option | Default | Notes |
 | --- | --- | --- |
-| `checksum` | `none` | After packaging, writes `checksums-<algo>.txt` into the output directory. `sha256` (recommended) / `sha1` / `md5` (the latter two only for legacy integrations; both are broken for collision resistance) |
+| `checksum` | `none` | After packaging, writes `checksums-<algo>.txt` into the output directory. `sha256` (recommended) / `sha1` / `md5` (the latter two only for legacy integrations; both are broken for collision resistance). Upgrade and "both" builds use `checksums-upgrade-…` / `checksums-both-…` so they never overwrite each other |
 
 ## Why only nine compression levels
 
