@@ -1,9 +1,11 @@
 """
 生成分享卡片 public/og.png 与 public/og-en.png（1200×630）。
 
-和站点用同一套东西：纸白底、朱红方块、等宽字的元信息行。
+和站点用同一套东西：纸白底、Fluent 蓝方块、等宽字的元信息行。
+版本号从 src/lib/site.ts 读，避免再出现卡片写着旧版本的情况。
 中文用系统里的微软雅黑（打包字体没有 CJK 字形），英文用 Segoe UI。
 """
+import re
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -16,9 +18,12 @@ PAPER = (247, 244, 238)
 INK = (23, 19, 15)
 INK2 = (61, 55, 47)
 MUTED = (109, 100, 87)
-FAINT = (147, 137, 123)
-RULE = (217, 208, 193)
-ACCENT = (194, 51, 39)
+FAINT = (116, 107, 93)
+RULE = (222, 213, 198)
+ACCENT = (15, 108, 189)
+
+SITE_TEXT = (ROOT / "src" / "lib" / "site.ts").read_text(encoding="utf-8")
+VERSION = re.search(r"version:\s*'([^']+)'", SITE_TEXT).group(1)
 
 CARDS = {
     "og.png": {
@@ -27,7 +32,7 @@ CARDS = {
         "line1": "把三个命令行工具",
         "line2": "收进一个窗口",
         "tagline": "程序合并 / 加密 / 打包工作台",
-        "meta": ["v0.2.0", "Windows 10 / 11", "MIT"],
+        "meta": [f"v{VERSION}", "Windows 10 / 11", "MIT"],
     },
     "og-en.png": {
         "bold": ("segoeuib.ttf", 62),
@@ -35,7 +40,7 @@ CARDS = {
         "line1": "Three command-line tools,",
         "line2": "one window",
         "tagline": "Merge, encrypt and package — one workbench",
-        "meta": ["v0.2.0", "Windows 10 / 11", "MIT"],
+        "meta": [f"v{VERSION}", "Windows 10 / 11", "MIT"],
     },
 }
 

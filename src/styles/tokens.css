@@ -1,9 +1,12 @@
 /* ============================================================================
    设计令牌
    ---------------------------------------------------------------------------
-   底色是「纸」，不是「白」；主色只有一个朱红，其余全部由墨色的浓淡撑起来。
-   暗色不是把颜色反过来，而是换成一盏更暗的纸（#17140f）——
-   纯黑背景会让 1px 的细线消失，也就把整页的网格结构一起弄丢了。
+   「Fluent 材质 × 纸墨骨架」：正文仍然用纸与线承担层次，控件、浮层、焦点与
+   动效走 Fluent 2 的语义层。这样文档站和应用本体（Fluent UI React v9）用的
+   是同一套表面 / 描边 / 圆角 / 阴影语言，长文又不至于被白卡片切碎。
+
+   主色换成 Fluent 品牌蓝：浅色 #0f6cbd、深色 #479ef5，与桌面端截图同框时不再
+   出现两套红。朱红降级为语义色，只留给「踩过的坑」这类警示。
    ========================================================================== */
 
 :root {
@@ -16,24 +19,53 @@
   --ink: #17130f;
   --ink-2: #3d372f;
   --muted: #6d6457;
-  --faint: #93897b;
+  --faint: #746b5d;
 
-  /* 线 —— 结构全部由线画出来，没有阴影，也没有圆角卡片 */
-  --rule: #d9d0c1;
+  /* 线：Fluent 的 stroke 三层，subtle 只做分隔，default 做控件描边 */
+  --rule: #ded5c6;
   --rule-2: #c2b6a3;
   --rule-strong: #17130f;
 
-  /* 朱红 */
-  --accent: #c23327;
-  --accent-ink: #fffdf8;
-  --accent-soft: #f2e0db;
+  /* 品牌蓝（Fluent 2 webLightTheme 的 brand 层） */
+  --accent: #0f6cbd;
+  --accent-hover: #115ea3;
+  --accent-ink: #ffffff;
+  --accent-soft: #e5f0fa;
+
+  /* 语义色：Callout 的四种语气 */
+  --tone-warn: #9a5b00;
+  --tone-warn-soft: #fbf3e2;
+  --tone-danger: #c23327;
+  --tone-danger-soft: #f9ece9;
+  --tone-success: #4f6b3a;
+  --tone-success-soft: #eef2e6;
 
   --code-bg: #f1ede4;
   --mark: #f0dfb8;
 
+  /* 表面：卡片与浮层用 surface-1，chrome 用半透明纸 */
+  --surface-1: #fffdf9;
+  --surface-2: #f3efe6;
+  --chrome: rgba(247, 244, 238, 0.82);
+
   --header-h: 60px;
   --rail-w: 258px;
   --toc-w: 196px;
+
+  /* Fluent 形状、密度与动效 */
+  --radius-ctrl: 4px;
+  --radius-card: 6px;
+  --radius-overlay: 8px;
+  --control-h: 32px;
+  --duration-fast: 120ms;
+  --duration-normal: 180ms;
+  --ease: cubic-bezier(0.33, 0, 0.67, 1);
+
+  /* 阴影只给浮层与可抬起的卡片；正文永远没有投影 */
+  --shadow-2: 0 1px 2px rgba(20, 24, 28, 0.1), 0 0 2px rgba(20, 24, 28, 0.06);
+  --shadow-4: 0 2px 4px rgba(20, 24, 28, 0.1), 0 0 2px rgba(20, 24, 28, 0.06);
+  --shadow-8: 0 4px 8px rgba(20, 24, 28, 0.12), 0 0 2px rgba(20, 24, 28, 0.06);
+  --shadow-16: 0 8px 16px rgba(20, 24, 28, 0.14), 0 0 2px rgba(20, 24, 28, 0.06);
 
   --font-sans: 'Instrument Sans', ui-sans-serif, 'PingFang SC', 'Microsoft YaHei UI',
     'Microsoft YaHei', 'Noto Sans SC', 'Source Han Sans SC', sans-serif;
@@ -50,16 +82,33 @@
   --ink: #ece5d9;
   --ink-2: #c6bdae;
   --muted: #948a7b;
-  --faint: #7b7163;
+  --faint: #8f8576;
 
   --rule: #322c23;
   --rule-2: #453d31;
   --rule-strong: #6a5f4d;
 
-  --accent: #e8735f;
-  --accent-ink: #17140f;
-  --accent-soft: #2b1c17;
+  --accent: #479ef5;
+  --accent-hover: #62abf5;
+  --accent-ink: #0b1218;
+  --accent-soft: #122a3d;
+
+  --tone-warn: #f0a130;
+  --tone-warn-soft: #2a2113;
+  --tone-danger: #f1707b;
+  --tone-danger-soft: #2b1719;
+  --tone-success: #8fae63;
+  --tone-success-soft: #1c2416;
 
   --code-bg: #100e0a;
   --mark: #3a3223;
+
+  --surface-1: #1e1a14;
+  --surface-2: #272119;
+  --chrome: rgba(23, 20, 15, 0.84);
+
+  --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 2px rgba(0, 0, 0, 0.24);
+  --shadow-4: 0 2px 4px rgba(0, 0, 0, 0.44), 0 0 2px rgba(0, 0, 0, 0.24);
+  --shadow-8: 0 4px 8px rgba(0, 0, 0, 0.48), 0 0 2px rgba(0, 0, 0, 0.24);
+  --shadow-16: 0 8px 16px rgba(0, 0, 0, 0.52), 0 0 2px rgba(0, 0, 0, 0.24);
 }

@@ -89,14 +89,21 @@ order: 3           # 组内顺序
 
 ## 设计约定
 
-- **结构用线画，不用框画**：全站没有圆角卡片、没有投影、没有渐变。层次由字号、字重、留白和 1px 的线承担。
-- **一个主色**：朱红 `#c23327` 只用在标记、链接悬停与左边线上，其余全靠墨色浓淡。
+**Fluent 材质 × 纸墨骨架**：阅读区继续用线画，控件与浮层才用面画。
+
+- **结构用线，控件用面**：正文没有圆角卡片、没有投影，层次由字号、字重、留白和 1px 的线承担。
+  顶栏、按钮、代码块、Callout、翻页、搜索框这些可交互或需要分组的元素走 Fluent 2 的语义：
+  4 / 6 / 8 圆角、32px 控件高、1px 描边，以及只给浮层与可抬起卡片的轻阴影。
+- **一个主色，只做交互**：Fluent 蓝 `#0f6cbd`（深色 `#479ef5`）用在链接悬停、选中条、焦点环、
+  主按钮与页头标记上；朱红降级为 `pitfall` 的语义色，不再是全站主色。
+- **顶栏是 Mica 的近似**：半透明纸 + `backdrop-filter: blur(20px)`，滚动时能透出下面的正文。
 - **暗色不是反色**：换成更暗的纸 `#17140f`，保留同样的线宽与对比关系 —— 纯黑底会让 1px 的线消失。
 - **h2 的编号挂在左侧边栏**里，窄屏收起。编号由 CSS counter 生成，正文里不用手写。
 - **中英各自的行高**：中文 1.85，英文收到 1.72（`html[lang='en']` 覆盖），拉丁文按中文行高排会显散。
-- 字体是本网站自己的：Instrument Sans + JetBrains Mono，中文回落到系统字体。应用本体用的是
-  Windows 系统的 Segoe UI Variable + Cascadia Mono，两者刻意不同 —— 文档站是纸墨风格，
-  应用是 Fluent。
+- **字体是本网站自己的**：Instrument Sans + JetBrains Mono，中文回落到系统字体。应用本体用的是
+  Windows 系统的 Segoe UI Variable + Cascadia Mono，两者刻意不同 —— 文档站是纸墨排版，
+  应用是 Fluent 控件；两边共用的是 Fluent 的语义 token，不是同一套字体。
+- 颜色、圆角、阴影、动效的取值都在 `src/styles/tokens.css`，组件里不写裸 hex。
 
 ## 校验
 
@@ -141,5 +148,5 @@ pnpm run probe
 `astro.config.mjs` 里的 `site` 与 `src/lib/site.ts` 里的 `url` 是同一个域名，改的时候两处一起改
 （canonical、OG、sitemap 都用它）。
 
-分享图由 `scripts/make-og.py` 生成（Pillow + 系统里的微软雅黑 / Segoe UI），
-输出 `public/og.png` 与 `public/og-en.png`，改了文案重跑一次即可。
+分享图由 `scripts/make-og.py` 生成（Pillow + 系统里的微软雅黑 / Segoe UI），版本号从
+`src/lib/site.ts` 读取，输出 `public/og.png` 与 `public/og-en.png`，改了文案重跑一次即可。
